@@ -14,9 +14,9 @@ import atexit
 import flask
 from threading import Thread
 
-print("=== LUNA AI BOT - RAILWAY 24/7 EDITION ===")
+print("=== LUNA AI BOT - RENDER 24/7 EDITION ===")
 
-# ==================== WEB SERVER FOR RAILWAY ====================
+# ==================== WEB SERVER FOR RENDER ====================
 app = flask.Flask(__name__)
 start_time = datetime.datetime.now()
 
@@ -57,14 +57,9 @@ def health():
     }
 
 def run_web():
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     print(f"🌐 Starting web server on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
-
-# Запускаем веб-сервер
-web_thread = Thread(target=run_web, daemon=True)
-web_thread.start()
-print("✅ Web server started for Railway")
 
 # ==================== СИСТЕМА ОЧЕРЕДИ СООБЩЕНИЙ ====================
 class MessageQueue:
@@ -627,7 +622,7 @@ if bot:
 ⏰ **Uptime**: {str(uptime).split('.')[0]}
 👥 **Users**: {len(user_stats_cache)} ({active_users} active)
 💬 **Total Messages**: {total_messages}
-🌐 **Hosting**: Railway
+🌐 **Hosting**: Render
 💾 **Database**: SQLite
 
 *Bot is healthy and working!* 💖
@@ -834,15 +829,13 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
             
         message_queue.add_message(message)
 
-# ==================== ЗАПУСК БОТА ДЛЯ RAILWAY ====================
+# ==================== ЗАПУСК БОТА ДЛЯ RENDER ====================
 def start_bot():
     if not bot:
         print("❌ Bot cannot start - TELEGRAM_BOT_TOKEN not set")
-        print("🌐 But web server is running on Railway!")
-        # Бесконечный цикл чтобы веб-сервер продолжал работать
-        while True:
-            time.sleep(60)
-            print(f"❤️ Web server heartbeat - {datetime.datetime.now()}")
+        print("🌐 But web server is running on Render!")
+        # Запускаем только веб-сервер для Render
+        run_web()
         return
         
     restart_count = 0
@@ -850,8 +843,7 @@ def start_bot():
     
     while restart_count < max_restarts:
         try:
-            print(f"\n🚀 Starting Luna Bot on Railway... (Attempt {restart_count + 1})")
-            print("✅ Web server: Running on port 8080")
+            print(f"\n🚀 Starting Luna Bot on Render... (Attempt {restart_count + 1})")
             print("✅ Database: Initialized")
             print("✅ Message queue: Ready")
             
@@ -870,8 +862,21 @@ def start_bot():
 
 if __name__ == "__main__":
     print("================================================")
-    print("🤖 LUNA AI BOT - RAILWAY 24/7 EDITION")
+    print("🤖 LUNA AI BOT - RENDER 24/7 EDITION")
     print("💖 Plan: БОБЫЛЬ - 4 Relationship Levels")
-    print("🌐 Web: Running on Railway")
+    print("🌐 Web: Running on Render")
     print("================================================")
-    start_bot()
+    
+    # На Render запускаем либо бота, либо веб-сервер, но не оба одновременно
+    if not API_TOKEN:
+        print("🔧 Starting in Web Server Only mode...")
+        run_web()
+    else:
+        print("🔧 Starting in Bot + Web Server mode...")
+        # Запускаем веб-сервер в отдельном потоке
+        web_thread = Thread(target=run_web, daemon=True)
+        web_thread.start()
+        print("✅ Web server started in background")
+        
+        # Запускаем бота в основном поток
+        start_bot()
