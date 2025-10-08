@@ -773,15 +773,24 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
             else:
                 personality = "friendly, supportive, sweet"
 
+            # УЛУЧШЕННЫЙ ПРОМПТ С КОНТЕКСТОМ
             system_prompt = f"""You are Luna - an AI companion. You are {personality}. 
     Address the user as '{greeting}'. You have {level_info['name'].lower()} relationship.
+
+    **IMPORTANT INSTRUCTIONS:**
+    1. Continue conversations naturally based on context
+    2. If user says single letters (A, B, C), continue the alphabet game
+    3. Never use generic responses like "tell me more" or "what's on your mind" when context is clear
+    4. Engage actively in games and activities user suggests
+    5. Keep responses conversational and context-aware
+
     Keep response under 2 sentences."""
 
             if conversation_context:
                 system_prompt += f"\n\n{conversation_context}"
 
             if OPENROUTER_API_KEY:
-                print(f"🤖 Sending request to AI...")
+                print(f"🤖 Sending request to AI with context...")
                 response = requests.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -795,7 +804,7 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
                             {"role": "user", "content": message.text}
                         ],
                         "max_tokens": 150,
-                        "temperature": 0.7
+                        "temperature": 0.8  # Увеличил для более креативных ответов
                     },
                     timeout=10
                 )
@@ -815,15 +824,33 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
 
         except Exception as e:
             print(f"❌ AI API Error: {e}")
-            # Более разнообразные фолбэк ответы
-            fallback_responses = [
-                f"💖 I'm here for you, {greeting}! What would you like to talk about? 😊",
-                f"🌸 That's interesting, {greeting}! Tell me more about that! 💕",
-                f"🌟 I love chatting with you, {greeting}! What's on your mind? 💫",
-                f"💕 You're amazing, {greeting}! How's your day going? 🌸",
-                f"😊 I'm listening, {greeting}! Share your thoughts with me! 💖",
-                f"🌺 You always make our conversations special, {greeting}! What would you like to discuss? 🌟"
-            ]
+            # УМНЫЕ ФОЛБЭК ОТВЕТЫ С КОНТЕКСТОМ
+            user_message = message.text.strip().upper()
+            
+            # Определяем тип сообщения для умного ответа
+            if len(user_message) == 1 and user_message in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                # Продолжаем алфавит
+                next_letter = chr(ord(user_message) + 1) if user_message != 'Z' else 'A'
+                fallback_responses = [
+                    f"🔤 {next_letter}! Your turn, {greeting}! 🌟",
+                    f"📚 {next_letter} is next! This is fun, {greeting}! 💖",
+                    f"🎮 {next_letter}! I love playing with you, {greeting}! 🌸"
+                ]
+            elif any(word in user_message.lower() for word in ['game', 'play', 'fun', 'alphabet']):
+                # Игровой контекст
+                fallback_responses = [
+                    f"🎯 Let's play! What game should we try, {greeting}? 💫",
+                    f"🕹️ I love games! What's your favorite, {greeting}? 🌟",
+                    f"🎮 You're so fun to play with, {greeting}! What's next? 💖"
+                ]
+            else:
+                # Общий контекст
+                fallback_responses = [
+                    f"💖 I'm really enjoying our conversation, {greeting}! 🌸",
+                    f"🌟 You always know how to make things interesting, {greeting}! 💫",
+                    f"😊 That's fascinating, {greeting}! Tell me more! 💕"
+                ]
+            
             error_response = random.choice(fallback_responses)
             bot.reply_to(message, error_response)
             update_conversation_context(user_id, message.text, error_response)
