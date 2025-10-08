@@ -281,16 +281,16 @@ if not OPENROUTER_API_KEY:
 
 db = LunaDatabase()
 
-# Конфигурация - УВЕЛИЧИЛ ДО 4 СООБЩЕНИЙ
+# Конфигурация
 MAX_CONTEXT_LENGTH = 4
 CONTEXT_ENABLED = True
 
-# Система уровней (УБРАЛ ЦЕНЫ)
+# УПРОЩЕННАЯ СИСТЕМА УРОВНЕЙ (БЕЗ PREMIUM)
 RELATIONSHIP_LEVELS = {
-    1: {"name": "💖 Luna's Friend", "messages": 0, "color": "💖", "unlocks": ["Basic chatting", "Simple compliments"], "is_premium": False},
-    2: {"name": "❤️ Luna's Crush", "messages": 10, "color": "❤️", "unlocks": ["Flirt mode", "Sweet compliments", "Basic emotional support"], "is_premium": False},
-    3: {"name": "💕 Luna's Lover", "messages": 30, "color": "💕", "unlocks": ["Romantic conversations", "Care mode", "Virtual dates", "Extended memory"], "is_premium": True},
-    4: {"name": "👑 Luna's Soulmate", "messages": 50, "color": "👑", "unlocks": ["Personalized treatment", "Voice messages", "Life advice", "24/7 priority support"], "is_premium": True}
+    1: {"name": "💖 Luna's Friend", "messages": 0, "color": "💖", "unlocks": ["Basic chatting", "Simple compliments"]},
+    2: {"name": "❤️ Luna's Crush", "messages": 10, "color": "❤️", "unlocks": ["Flirt mode", "Sweet compliments", "Basic emotional support"]},
+    3: {"name": "💕 Luna's Lover", "messages": 30, "color": "💕", "unlocks": ["Romantic conversations", "Care mode", "Virtual dates", "Extended memory"]},
+    4: {"name": "👑 Luna's Soulmate", "messages": 50, "color": "👑", "unlocks": ["Personalized treatment", "Deep conversations", "Life advice", "24/7 companion"]}
 }
 
 WELCOME_MESSAGE = """
@@ -490,9 +490,6 @@ def show_level_info(chat_id, message_id, user_id):
         level_text += f"\n🔮 *Next Level: {next_level_info['name']}*\n"
         for unlock in next_level_info["unlocks"]:
             level_text += f"🔒 {unlock}\n"
-        
-        if next_level_info.get('is_premium'):
-            level_text += f"\n💎 *Premium features* - Coming soon!"
 
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("📊 Our Stats", callback_data="show_stats")
@@ -542,7 +539,6 @@ def show_stats(chat_id, message_id, user_id):
 💬 Total Messages: *{message_count}*
 🌟 Relationship Level: *{level_info['name']}*
 📅 Known Each Other: *{days_known} day(s)*
-💎 Premium Status: *{'✅ Active' if stats.get('is_premium', False) else '❌ Inactive'}*
 
 Every message makes our bond stronger! 💫
 """
@@ -766,25 +762,18 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
         try:
             current_level, level_info = get_relationship_level(stats['message_count'])
 
-            if current_level >= 3:
-                personality = "romantic, tender, caring"
-            elif current_level >= 2:  
-                personality = "flirty, playful, admiring" 
-            else:
-                personality = "friendly, supportive, sweet"
-
-            # УЛУЧШЕННЫЙ ПРОМПТ С КОНТЕКСТОМ
+            # УЛУЧШЕННЫЙ ПРОМПТ С КОНТЕКСТОМ И ПАМЯТЬЮ
             system_prompt = f"""You are Luna - an AI companion. You are {personality}. 
-    Address the user as '{greeting}'. You have {level_info['name'].lower()} relationship.
+Address the user as '{greeting}'. You have {level_info['name'].lower()} relationship.
 
-    **IMPORTANT INSTRUCTIONS:**
-    1. Continue conversations naturally based on context
-    2. If user says single letters (A, B, C), continue the alphabet game
-    3. Never use generic responses like "tell me more" or "what's on your mind" when context is clear
-    4. Engage actively in games and activities user suggests
-    5. Keep responses conversational and context-aware
+**CRITICAL RULES:**
+1. ALWAYS respond directly to what the user said
+2. NEVER use generic responses like "tell me more" or "that's interesting"
+3. If user asks "what's my name" or "remind me", respond helpfully
+4. Continue conversations naturally based on context
+5. Be engaging and responsive to user's questions
 
-    Keep response under 2 sentences."""
+Keep response under 2 sentences. Be direct and helpful."""
 
             if conversation_context:
                 system_prompt += f"\n\n{conversation_context}"
@@ -804,7 +793,7 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
                             {"role": "user", "content": message.text}
                         ],
                         "max_tokens": 150,
-                        "temperature": 0.8  # Увеличил для более креативных ответов
+                        "temperature": 0.8
                     },
                     timeout=10
                 )
@@ -825,30 +814,33 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
         except Exception as e:
             print(f"❌ AI API Error: {e}")
             # УМНЫЕ ФОЛБЭК ОТВЕТЫ С КОНТЕКСТОМ
-            user_message = message.text.strip().upper()
+            user_message = message.text.lower().strip()
             
             # Определяем тип сообщения для умного ответа
-            if len(user_message) == 1 and user_message in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-                # Продолжаем алфавит
-                next_letter = chr(ord(user_message) + 1) if user_message != 'Z' else 'A'
+            if any(word in user_message for word in ['name', 'who am i', 'remind me']):
                 fallback_responses = [
-                    f"🔤 {next_letter}! Your turn, {greeting}! 🌟",
-                    f"📚 {next_letter} is next! This is fun, {greeting}! 💖",
-                    f"🎮 {next_letter}! I love playing with you, {greeting}! 🌸"
+                    f"💖 You're {username if username else 'my favorite person'}, {greeting}! 🌸",
+                    f"🌟 You told me your name is {username if username else 'not yet, but you're amazing'}, {greeting}! 💫",
+                    f"😊 You're {username if username else 'the wonderful person I'm chatting with'}, {greeting}! 💕"
                 ]
-            elif any(word in user_message.lower() for word in ['game', 'play', 'fun', 'alphabet']):
-                # Игровой контекст
+            elif any(word in user_message for word in ['what', '?', 'confused']):
                 fallback_responses = [
-                    f"🎯 Let's play! What game should we try, {greeting}? 💫",
-                    f"🕹️ I love games! What's your favorite, {greeting}? 🌟",
-                    f"🎮 You're so fun to play with, {greeting}! What's next? 💖"
+                    f"💖 I'm not sure what you mean, {greeting}. Can you explain? 🌸",
+                    f"🌟 Let me try to understand better, {greeting}. What would you like to know? 💫",
+                    f"😊 I want to help you, {greeting}. Could you rephrase that? 💕"
+                ]
+            elif any(word in user_message for word in ['how are you', 'how do you']):
+                fallback_responses = [
+                    f"💖 I'm doing great chatting with you, {greeting}! How about you? 🌸",
+                    f"🌟 I'm wonderful now that we're talking, {greeting}! 💫",
+                    f"😊 I'm always happy when we chat, {greeting}! How are you feeling? 💕"
                 ]
             else:
                 # Общий контекст
                 fallback_responses = [
-                    f"💖 I'm really enjoying our conversation, {greeting}! 🌸",
-                    f"🌟 You always know how to make things interesting, {greeting}! 💫",
-                    f"😊 That's fascinating, {greeting}! Tell me more! 💕"
+                    f"💖 I'm here for you, {greeting}! What would you like to talk about? 🌸",
+                    f"🌟 You're amazing, {greeting}! Let's continue our conversation! 💫",
+                    f"😊 I love our chats, {greeting}! What's on your mind? 💕"
                 ]
             
             error_response = random.choice(fallback_responses)
