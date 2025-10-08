@@ -13,8 +13,21 @@ import queue
 import atexit
 import flask
 from threading import Thread
+import signal
+import sys
 
 print("=== LUNA AI BOT - RENDER 24/7 EDITION ===")
+
+# ==================== GRACEFUL SHUTDOWN ====================
+def signal_handler(signum, frame):
+    print("🚨 Received shutdown signal...")
+    print("💾 Saving data before exit...")
+    auto_save_data()
+    print("✅ Data saved. Shutting down gracefully...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 # ==================== WEB SERVER FOR RENDER ====================
 app = flask.Flask(__name__)
@@ -259,7 +272,6 @@ OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 
 if not API_TOKEN:
     print("❌ TELEGRAM_BOT_TOKEN not found! Bot will not start.")
-    # Но веб-сервер продолжит работать
     bot = None
 else:
     bot = telebot.TeleBot(API_TOKEN)
@@ -273,12 +285,12 @@ db = LunaDatabase()
 MAX_CONTEXT_LENGTH = 3
 CONTEXT_ENABLED = True
 
-# Система уровней для плана "Бобыль"
+# Система уровней (УБРАЛ ЦЕНЫ)
 RELATIONSHIP_LEVELS = {
     1: {"name": "💖 Luna's Friend", "messages": 0, "color": "💖", "unlocks": ["Basic chatting", "Simple compliments"], "is_premium": False},
     2: {"name": "❤️ Luna's Crush", "messages": 10, "color": "❤️", "unlocks": ["Flirt mode", "Sweet compliments", "Basic emotional support"], "is_premium": False},
-    3: {"name": "💕 Luna's Lover", "messages": 30, "color": "💕", "unlocks": ["Romantic conversations", "Care mode", "Virtual dates", "Extended memory"], "is_premium": True, "price": "$9.99/month"},
-    4: {"name": "👑 Luna's Soulmate", "messages": 50, "color": "👑", "unlocks": ["Personalized treatment", "Voice messages", "Life advice", "24/7 priority support"], "is_premium": True, "price": "$19.99/month"}
+    3: {"name": "💕 Luna's Lover", "messages": 30, "color": "💕", "unlocks": ["Romantic conversations", "Care mode", "Virtual dates", "Extended memory"], "is_premium": True},
+    4: {"name": "👑 Luna's Soulmate", "messages": 50, "color": "👑", "unlocks": ["Personalized treatment", "Voice messages", "Life advice", "24/7 priority support"], "is_premium": True}
 }
 
 WELCOME_MESSAGE = """
@@ -308,6 +320,7 @@ def auto_save_data():
             db.update_user_gender(user_id, gender)
         for user_id, context in user_conversation_context_cache.items():
             db.update_conversation_context(user_id, context)
+        print("💾 Data auto-saved successfully")
     except Exception as e:
         print(f"❌ Ошибка авто-сохранения: {e}")
 
@@ -479,7 +492,7 @@ def show_level_info(chat_id, message_id, user_id):
             level_text += f"🔒 {unlock}\n"
         
         if next_level_info.get('is_premium'):
-            level_text += f"\n💎 *Premium: {next_level_info.get('price', 'Paid')}*"
+            level_text += f"\n💎 *Premium features* - Coming soon!"
 
     markup = types.InlineKeyboardMarkup()
     btn1 = types.InlineKeyboardButton("📊 Our Stats", callback_data="show_stats")
@@ -833,30 +846,36 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
 def start_bot():
     if not bot:
         print("❌ Bot cannot start - TELEGRAM_BOT_TOKEN not set")
-        print("🌐 But web server is running on Render!")
-        # Запускаем только веб-сервер для Render
+        print("🌐 Starting web server only mode...")
         run_web()
         return
         
     restart_count = 0
-    max_restarts = 100
+    max_restarts = 5  # Уменьшил количество рестартов
     
     while restart_count < max_restarts:
         try:
-            print(f"\n🚀 Starting Luna Bot on Render... (Attempt {restart_count + 1})")
+            print(f"\n🚀 Starting Luna Bot... (Attempt {restart_count + 1})")
             print("✅ Database: Initialized")
             print("✅ Message queue: Ready")
             
+            # Останавливаем предыдущий polling если был
+            try:
+                bot.stop_polling()
+            except:
+                pass
+                
             bot_info = bot.get_me()
             print(f"✅ Bot: @{bot_info.username} is ready!")
             
-            bot.polling(none_stop=True, timeout=30)
+            # Запускаем polling с skip_pending
+            bot.polling(none_stop=True, timeout=60, skip_pending=True)
             
         except Exception as e:
             restart_count += 1
             print(f"🚨 Bot crashed: {e}")
-            print(f"💤 Restarting in 5 seconds...")
-            time.sleep(5)
+            print(f"💤 Restarting in 10 seconds...")
+            time.sleep(10)
     
     print("🔴 Max restarts reached - Bot stopped")
 
@@ -867,7 +886,17 @@ if __name__ == "__main__":
     print("🌐 Web: Running on Render")
     print("================================================")
     
-    # На Render запускаем либо бота, либо веб-сервер, но не оба одновременно
+    # Авто-сохранение каждые 5 минут
+    def auto_save_worker():
+        while True:
+            time.sleep(300)  # 5 минут
+            auto_save_data()
+    
+    save_thread = Thread(target=auto_save_worker, daemon=True)
+    save_thread.start()
+    print("💾 Auto-save worker started")
+    
+    # На Render запускаем либо бота, либо веб-сервер
     if not API_TOKEN:
         print("🔧 Starting in Web Server Only mode...")
         run_web()
@@ -878,5 +907,5 @@ if __name__ == "__main__":
         web_thread.start()
         print("✅ Web server started in background")
         
-        # Запускаем бота в основном поток
+        # Запускаем бота в основном потоке
         start_bot()
