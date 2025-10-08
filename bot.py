@@ -281,8 +281,8 @@ if not OPENROUTER_API_KEY:
 
 db = LunaDatabase()
 
-# Конфигурация
-MAX_CONTEXT_LENGTH = 3
+# Конфигурация - УВЕЛИЧИЛ ДО 4 СООБЩЕНИЙ
+MAX_CONTEXT_LENGTH = 4
 CONTEXT_ENABLED = True
 
 # Система уровней (УБРАЛ ЦЕНЫ)
@@ -406,12 +406,12 @@ def get_conversation_context_text(user_id):
     if not context:
         return ""
 
-    context_text = "\nRecent conversation:\n"
+    context_text = "\nRecent conversation (last 4 messages):\n"
     for msg in context:
         context_text += f"User: {msg['user']}\n"
         context_text += f"Luna: {msg['bot']}\n"
     
-    context_text += "Continue naturally!\n"
+    context_text += "Continue naturally based on this conversation!\n"
     return context_text
 
 def get_relationship_level(message_count):
@@ -807,16 +807,22 @@ You're now *{new_level_info['name']}*! {new_level_info['color']}
                     update_conversation_context(user_id, message.text, ai_response)
                 else:
                     print(f"❌ API Error: {response.status_code}")
-                    raise Exception("API request failed")
+                    print(f"❌ Response text: {response.text}")
+                    raise Exception(f"API request failed: {response.status_code}")
             else:
+                print("⚠️ No OpenRouter API key, using fallback")
                 raise Exception("No OpenRouter API key")
 
         except Exception as e:
             print(f"❌ AI API Error: {e}")
+            # Более разнообразные фолбэк ответы
             fallback_responses = [
-                f"💖 I'm here for you, {greeting}! 😊",
-                f"🌸 Let's chat, {greeting}! You're awesome! 💕", 
-                f"🌟 You make me smile, {greeting}! 💫"
+                f"💖 I'm here for you, {greeting}! What would you like to talk about? 😊",
+                f"🌸 That's interesting, {greeting}! Tell me more about that! 💕",
+                f"🌟 I love chatting with you, {greeting}! What's on your mind? 💫",
+                f"💕 You're amazing, {greeting}! How's your day going? 🌸",
+                f"😊 I'm listening, {greeting}! Share your thoughts with me! 💖",
+                f"🌺 You always make our conversations special, {greeting}! What would you like to discuss? 🌟"
             ]
             error_response = random.choice(fallback_responses)
             bot.reply_to(message, error_response)
@@ -851,13 +857,14 @@ def start_bot():
         return
         
     restart_count = 0
-    max_restarts = 5  # Уменьшил количество рестартов
+    max_restarts = 5
     
     while restart_count < max_restarts:
         try:
             print(f"\n🚀 Starting Luna Bot... (Attempt {restart_count + 1})")
             print("✅ Database: Initialized")
             print("✅ Message queue: Ready")
+            print(f"✅ Context memory: {MAX_CONTEXT_LENGTH} messages")
             
             # Останавливаем предыдущий polling если был
             try:
@@ -883,6 +890,7 @@ if __name__ == "__main__":
     print("================================================")
     print("🤖 LUNA AI BOT - RENDER 24/7 EDITION")
     print("💖 Plan: БОБЫЛЬ - 4 Relationship Levels")
+    print(f"🧠 Context: {MAX_CONTEXT_LENGTH} messages memory")
     print("🌐 Web: Running on Render")
     print("================================================")
     
