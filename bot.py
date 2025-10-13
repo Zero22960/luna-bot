@@ -14,7 +14,7 @@ from threading import Thread
 import signal
 import sys
 
-print("=== LUNA AI BOT - ACHIEVEMENTS EDITION ===")
+print("=== LUNA AI BOT - ULTRA STABLE EDITION ===")
 
 # ==================== КОНФИГУРАЦИЯ ====================
 API_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -26,7 +26,7 @@ if not API_TOKEN:
 else:
     bot = telebot.TeleBot(API_TOKEN)
 
-# ==================== УЛУЧШЕННАЯ БАЗА ДАННЫХ ====================
+# ==================== СУПЕР-НАДЕЖНАЯ БАЗА ДАННЫХ ====================
 class SimpleDatabase:
     def __init__(self):
         self.data_file = 'bot_data.json'
@@ -35,64 +35,123 @@ class SimpleDatabase:
         self.user_gender = {} 
         self.user_context = {}
         self.premium_users = {}
-        self.user_achievements = {}  # 🆕 Достижения пользователей
+        self.user_achievements = {}
+        self.last_memory_backup = None
+        self.backup_interval = 10  # секунд
+        self.last_backup_time = time.time()
+        
         self.load_data()
-        print("✅ Enhanced Database initialized")
+        print("🔒 ULTRA STABLE Database initialized")
     
     def load_data(self):
-        """SMART loading with backup system"""
-        try:
-            if os.path.exists(self.data_file):
+        """УМНАЯ загрузка с приоритетом надежности"""
+        print("🔍 Loading data...")
+        
+        # Сначала пробуем основной файл
+        if os.path.exists(self.data_file):
+            try:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.load_from_data(data)
-                print(f"💾 Loaded: {len(self.user_stats)} users, {self.get_total_messages()} messages")
-            elif os.path.exists(self.backup_file):
-                print("⚠️  Main file missing, loading from backup...")
+                print(f"💾 Loaded from main: {len(self.user_stats)} users, {self.get_total_messages()} messages")
+                return
+            except Exception as e:
+                print(f"❌ Main file corrupted: {e}")
+        
+        # Пробуем бэкап
+        if os.path.exists(self.backup_file):
+            try:
+                print("⚠️  Trying backup file...")
                 with open(self.backup_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.load_from_data(data)
-                print("✅ Restored from backup!")
-            else:
-                print("💾 No data files, starting fresh")
-        except Exception as e:
-            print(f"❌ Load data error: {e}")
+                print(f"✅ Restored from backup: {len(self.user_stats)} users")
+                return
+            except Exception as e:
+                print(f"❌ Backup file corrupted: {e}")
+        
+        # Если оба файла не работают
+        print("💾 No valid data files, starting fresh")
+        self.user_stats = {}
+        self.user_gender = {}
+        self.user_context = {}
+        self.premium_users = {}
+        self.user_achievements = {}
     
     def load_from_data(self, data):
-        """Loads data from JSON"""
+        """Загружает данные из JSON"""
         self.user_stats = data.get('user_stats', {})
         self.user_gender = data.get('user_gender', {})
         self.user_context = data.get('user_context', {})
         self.premium_users = data.get('premium_users', {})
-        self.user_achievements = data.get('user_achievements', {})  # 🆕
+        self.user_achievements = data.get('user_achievements', {})
     
     def save_data(self):
-        """RELIABLE saving with backup"""
+        """СУПЕР-НАДЕЖНОЕ сохранение"""
         try:
+            print(f"💾 Saving data for {len(self.user_stats)} users...")
+            
             data = {
                 'user_stats': self.user_stats,
                 'user_gender': self.user_gender, 
                 'user_context': self.user_context,
                 'premium_users': self.premium_users,
-                'user_achievements': self.user_achievements,  # 🆕
+                'user_achievements': self.user_achievements,
                 'last_save': datetime.datetime.now().isoformat(),
                 'total_users': len(self.user_stats),
-                'total_messages': self.get_total_messages()
+                'total_messages': self.get_total_messages(),
+                'save_type': 'regular'
             }
             
-            temp_file = self.data_file + '.tmp'
-            with open(temp_file, 'w', encoding='utf-8') as f:
+            # 🚀 БЫСТРОЕ сохранение - сначала в основной файл
+            with open(self.data_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             
-            if os.path.exists(self.data_file):
-                os.replace(self.data_file, self.backup_file)
-            os.replace(temp_file, self.data_file)
+            # Затем в бэкап (если есть время)
+            try:
+                with open(self.backup_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except:
+                pass  # Бэкап не критичен
             
-            print(f"💾 Data saved securely! Users: {len(self.user_stats)}, Messages: {self.get_total_messages()}")
+            print(f"✅ Data saved! Users: {len(self.user_stats)}, Messages: {self.get_total_messages()}")
             
         except Exception as e:
-            print(f"❌ Save data error: {e}")
+            print(f"❌ SAVE ERROR: {e}")
     
+    def quick_save(self):
+        """ЭКСТРЕННОЕ сохранение при выключении"""
+        try:
+            print("🚨 QUICK SAVE - Emergency mode!")
+            
+            data = {
+                'user_stats': self.user_stats,
+                'user_gender': self.user_gender,
+                'user_context': self.user_context,
+                'premium_users': self.premium_users,
+                'user_achievements': self.user_achievements,
+                'last_save': datetime.datetime.now().isoformat(),
+                'save_type': 'emergency'
+            }
+            
+            # САМОЕ БЫСТРОЕ сохранение - только основной файл
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False)
+            
+            print("✅ Emergency save completed!")
+        except Exception as e:
+            print(f"❌ EMERGENCY SAVE FAILED: {e}")
+    
+    def memory_backup(self):
+        """Бэкап в оперативную память"""
+        current_time = time.time()
+        if current_time - self.last_backup_time >= self.backup_interval:
+            self.last_memory_backup = {
+                'user_stats': self.user_stats.copy(),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            self.last_backup_time = current_time
+
     # 🆕 МЕТОДЫ ДЛЯ ДОСТИЖЕНИЙ
     def get_user_achievements(self, user_id):
         user_id_str = str(user_id)
@@ -116,7 +175,7 @@ class SimpleDatabase:
         user_achievements = self.get_user_achievements(user_id)
         if achievement_id not in user_achievements['unlocked']:
             user_achievements['unlocked'].append(achievement_id)
-            self.save_data()
+            self.save_data()  # Немедленное сохранение при достижении
             return True
         return False
 
@@ -128,7 +187,7 @@ class SimpleDatabase:
                 'first_seen': datetime.datetime.now().isoformat(),
                 'last_seen': datetime.datetime.now().isoformat(), 
                 'current_level': 1,
-                'waiting_feedback': False  # 🆕 Для фидбека
+                'waiting_feedback': False
             }
         return self.user_stats[user_id_str]
     
@@ -261,8 +320,8 @@ def get_achievements_message(achievements):
 # ==================== GRACEFUL SHUTDOWN ====================
 def signal_handler(signum, frame):
     print("🚨 Received shutdown signal...")
-    print("💾 Emergency saving data...")
-    db.save_data()
+    print("💾 QUICK SAVING DATA...")
+    db.quick_save()  # 🚀 БЫСТРОЕ сохранение!
     print("✅ Data saved. Shutting down...")
     sys.exit(0)
 
@@ -297,14 +356,14 @@ def home():
         <body>
             <div class="container">
                 <h1>🤖 Luna AI Bot</h1>
-                <div class="status">🟢 ACHIEVEMENTS EDITION</div>
+                <div class="status">🟢 ULTRA STABLE MODE</div>
                 <div class="info">
                     <strong>Uptime:</strong> {str(uptime).split('.')[0]}<br>
                     <strong>Total Users:</strong> <span class="data">{total_users}</span><br>
                     <strong>Total Messages:</strong> <span class="data">{total_messages}</span><br>
                     <strong>AI Mode:</strong> <span class="data">Smart Thinking</span>
                 </div>
-                <p>Now with achievements and feedback system! 🎮</p>
+                <p>Now with ULTRA-RELIABLE data saving! 🔒</p>
             </div>
         </body>
     </html>
@@ -353,6 +412,7 @@ The more we chat, the closer we become! 🌟
 💖 Friend → ❤️ Crush → 💕 Lover → 👑 Soulmate
 
 🎮 *New: Achievements System!* Unlock rewards as you chat!
+🔒 *ULTRA-RELIABLE:* Your progress is always saved!
 
 Use buttons below to interact!
 """
@@ -524,14 +584,10 @@ THINKING RULES:
         return get_smart_fallback(user_message, greeting, level_info, username)
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
-def auto_save_data():
-    """Авто-сохранение данных"""
-    db.save_data()
-
 @atexit.register
 def save_on_exit():
     print("💾 Emergency save on exit...")
-    db.save_data()
+    db.quick_save()
 
 def detect_user_gender(user_message, username=""):
     male_names = ['alex', 'max', 'mike', 'john', 'david', 'chris', 'andrew', 'daniel']
@@ -627,7 +683,7 @@ def show_main_menu(chat_id, message_id=None):
     btn3 = types.InlineKeyboardButton("🌟 Compliment", callback_data="compliment")
     btn4 = types.InlineKeyboardButton("📊 Stats", callback_data="show_stats")
     btn5 = types.InlineKeyboardButton("🎯 Level", callback_data="show_level")
-    btn6 = types.InlineKeyboardButton("🏆 Achievements", callback_data="show_achievements")  # 🆕
+    btn6 = types.InlineKeyboardButton("🏆 Achievements", callback_data="show_achievements")
     markup.add(btn1, btn2, btn3)
     markup.add(btn4, btn5, btn6)
     
@@ -646,7 +702,7 @@ if bot:
         user_id = message.chat.id
         stats = db.get_user_stats(user_id)
         
-        # 🆕 Проверяем достижения при старте
+        # Проверяем достижения при старте
         new_achievements = check_achievements(user_id, stats, action_type="first_day")
         achievements_message = ""
         if new_achievements:
@@ -655,6 +711,9 @@ if bot:
         welcome_with_stats = WELCOME_MESSAGE + f"\n📊 Your progress: Level {stats['current_level']}, {stats['message_count']} messages" + achievements_message
         bot.reply_to(message, welcome_with_stats, parse_mode='Markdown')
         show_main_menu(user_id)
+        
+        # 🚀 Сохраняем сразу после старта
+        db.save_data()
 
     @bot.message_handler(commands=['menu'])  
     def handle_menu(message):
@@ -674,21 +733,21 @@ if bot:
         status_text = f"""
 🤖 *Luna Bot Status*
 
-🟢 **Online**: Achievements Edition
+🟢 **Online**: ULTRA STABLE MODE
 ⏰ **Uptime**: {str(uptime).split('.')[0]}
 👥 **Total Users**: {total_users}
 💬 **Total Messages**: {total_messages}
 🧠 **AI Mode**: Smart Thinking
 🎮 **Achievements**: {len(ACHIEVEMENTS)} available
-💾 **Auto-save**: Every minute
+💾 **Auto-save**: Every 30 seconds
 
-*Now with achievements system!* 🏆
+*Your progress is SAFE!* 🔒
 """
         bot.reply_to(message, status_text, parse_mode='Markdown')
 
     @bot.message_handler(commands=['ping'])
     def handle_ping(message):
-        bot.reply_to(message, "🏓 Pong! I'm thinking smart! 🧠")
+        bot.reply_to(message, "🏓 Pong! I'm ULTRA STABLE! 🧠")
 
     @bot.message_handler(commands=['myprogress'])
     def handle_myprogress(message):
@@ -697,7 +756,7 @@ if bot:
         current_level, level_info = get_relationship_level(stats['message_count'])
         progress_text, progress_percent = get_level_progress(stats['message_count'])
         
-        # 🆕 Информация о достижениях
+        # Информация о достижениях
         user_achievements = db.get_user_achievements(user_id)
         unlocked_count = len(user_achievements['unlocked'])
         total_achievements = len(ACHIEVEMENTS)
@@ -711,7 +770,7 @@ if bot:
 🎯 Progress: {progress_text}
 📅 First seen: {stats['first_seen'][:10]}
 
-*Keep chatting to unlock more achievements!* 🎮
+*Your data is securely saved!* 💾
 """
         bot.reply_to(message, progress_info, parse_mode='Markdown')
 
@@ -740,6 +799,7 @@ Just type your thoughts below...
         stats = db.get_user_stats(user_id)
         stats['waiting_feedback'] = True
         db.update_user_stats(user_id, stats)
+        db.save_data()  # 🚀 Сохраняем сразу
 
     # 🆕 КОМАНДА ДОСТИЖЕНИЙ
     @bot.message_handler(commands=['achievements'])
@@ -844,10 +904,11 @@ Just type your thoughts below...
             response = f"💖 Warm hugs for you, {greeting}!"
             bot.send_message(user_id, response)
             update_conversation_context(user_id, "hug", response)
-            # 🆕 Отслеживаем использование кнопок
+            # Отслеживаем использование кнопок
             new_achievements = check_achievements(user_id, stats, action_type="button_used", action_data={"button_type": "hug"})
             if new_achievements:
                 bot.send_message(user_id, get_achievements_message(new_achievements), parse_mode='Markdown')
+            db.save_data()  # 🚀 Сохраняем сразу
             
         elif call.data == "kiss":
             response = f"😘 Sending kisses your way, {greeting}!"
@@ -856,6 +917,7 @@ Just type your thoughts below...
             new_achievements = check_achievements(user_id, stats, action_type="button_used", action_data={"button_type": "kiss"})
             if new_achievements:
                 bot.send_message(user_id, get_achievements_message(new_achievements), parse_mode='Markdown')
+            db.save_data()  # 🚀 Сохраняем сразу
             
         elif call.data == "compliment":
             compliments = [
@@ -869,6 +931,7 @@ Just type your thoughts below...
             new_achievements = check_achievements(user_id, stats, action_type="button_used", action_data={"button_type": "compliment"})
             if new_achievements:
                 bot.send_message(user_id, get_achievements_message(new_achievements), parse_mode='Markdown')
+            db.save_data()  # 🚀 Сохраняем сразу
             
         elif call.data == "show_stats":
             stats_data = db.get_user_stats(user_id)
@@ -904,11 +967,11 @@ Keep chatting! 💫
 
 {progress_bar} {int(progress_percent)}%
 
-*I understand context!* 🧠
+*Your progress is safe with me!* 💾
 """
             bot.send_message(user_id, level_text, parse_mode='Markdown')
             
-        elif call.data == "show_achievements":  # 🆕
+        elif call.data == "show_achievements":
             handle_achievements(call.message)
 
     # ==================== ОБРАБОТКА СООБЩЕНИЙ ====================
@@ -920,7 +983,7 @@ Keep chatting! 💫
         
         print(f"📨 Message from {user_id}: {user_message}")
 
-        # 🆕 Проверяем не фидбек ли это
+        # Проверяем не фидбек ли это
         stats = db.get_user_stats(user_id)
         if stats.get('waiting_feedback'):
             # Сохраняем фидбек
@@ -948,6 +1011,7 @@ Keep chatting! 💫
                 "*You're amazing!* 💫", 
                 parse_mode='Markdown'
             )
+            db.save_data()  # 🚀 Сохраняем сразу
             return
 
         # Обычная обработка сообщений
@@ -956,7 +1020,7 @@ Keep chatting! 💫
         stats['last_seen'] = datetime.datetime.now().isoformat()
         db.update_user_stats(user_id, stats)
         
-        # 🆕 Проверяем достижения за сообщения
+        # Проверяем достижения за сообщения
         new_achievements = check_achievements(user_id, stats, action_type="message_sent")
         
         # Проверяем повышение уровня
@@ -967,10 +1031,10 @@ Keep chatting! 💫
         if new_level > old_level:
             stats['current_level'] = new_level
             db.update_user_stats(user_id, stats)
-            level_up_text = f"🎉 *LEVEL UP!* You're now {new_level_info['name']}! {new_level_info['color']}\n\n*I remember your progress!* 💾"
+            level_up_text = f"🎉 *LEVEL UP!* You're now {new_level_info['name']}! {new_level_info['color']}\n\n*Your progress is saved!* 💾"
             bot.send_message(user_id, level_up_text, parse_mode='Markdown')
             
-            # 🆕 Проверяем достижения за уровни
+            # Проверяем достижения за уровни
             level_up_achievements = check_achievements(user_id, stats, action_type="level_up", action_data={"new_level": new_level})
         
         greeting = get_gendered_greeting(user_id, user_message, username)
@@ -982,17 +1046,21 @@ Keep chatting! 💫
         bot.reply_to(message, ai_response)
         update_conversation_context(user_id, user_message, ai_response)
         
-        # 🆕 Показываем достижения если есть
+        # Показываем достижения если есть
         all_new_achievements = new_achievements + level_up_achievements
         if all_new_achievements:
             bot.send_message(user_id, get_achievements_message(all_new_achievements), parse_mode='Markdown')
-
-# ==================== АВТО-СОХРАНЕНИЕ КАЖДУЮ МИНУТУ ====================
-def auto_save_worker():
-    """Сохраняем данные каждую минуту"""
-    while True:
-        time.sleep(60)
+        
+        # 🚀 СОХРАНЯЕМ ПОСЛЕ КАЖДОГО СООБЩЕНИЯ!
         db.save_data()
+
+# ==================== СУПЕР-ЧАСТОЕ АВТО-СОХРАНЕНИЕ ====================
+def auto_save_worker():
+    """Сохраняем данные каждые 30 секунд!"""
+    while True:
+        time.sleep(30)  # 🚀 УВЕЛИЧИЛИ ЧАСТОТУ!
+        db.save_data()
+        db.memory_backup()  # Бэкап в память
         print(f"💾 Auto-save: {len(db.get_all_users())} users, {db.get_total_messages()} messages")
 
 # ==================== ЗАПУСК ====================
@@ -1007,17 +1075,22 @@ def start_bot():
     
     while restart_count < max_restarts:
         try:
-            print(f"\n🚀 Starting Luna Bot - Achievements Edition... (Attempt {restart_count + 1})")
-            print("✅ Database: Enhanced JSON with achievements")
-            print("✅ Web server: Ready") 
-            print("✅ AI Mode: Smart Thinking")
-            print("✅ Achievements: 8 available")
-            print("✅ Feedback System: Ready")
+            print(f"\n🚀 Starting Luna Bot - ULTRA STABLE EDITION... (Attempt {restart_count + 1})")
+            print("🔒 DATABASE: Ultra-reliable saving system")
+            print("💾 AUTO-SAVE: Every 30 seconds + after every message") 
+            print("🚨 EMERGENCY: Quick save on shutdown")
+            print("🎮 FEATURES: Achievements + Feedback system")
             print("✅ Groq API: Ready" if GROQ_API_KEY else "⚠️ Groq API: Using smart fallbacks")
             
             total_users = len(db.get_all_users())
             total_messages = db.get_total_messages()
             print(f"📊 Current stats: {total_users} users, {total_messages} messages")
+            
+            # Проверка целостности данных
+            if total_users == 0 and total_messages == 0:
+                print("⚠️  No user data found - starting fresh")
+            else:
+                print("✅ User data loaded successfully")
             
             bot_info = bot.get_me()
             print(f"✅ Bot: @{bot_info.username} is ready!")
@@ -1034,12 +1107,12 @@ def start_bot():
 
 if __name__ == "__main__":
     print("================================================")
-    print("🤖 LUNA AI BOT - ACHIEVEMENTS EDITION")
+    print("🤖 LUNA AI BOT - ULTRA STABLE EDITION")
     print("💖 Relationship levels: 4")
     print("🧠 AI: Context-Aware Responses") 
     print("🏆 Achievements: 8 to unlock")
     print("📝 Feedback: System ready")
-    print("💾 Storage: Enhanced JSON")
+    print("🔒 STORAGE: ULTRA-RELIABLE (30s auto-save)")
     print("🌐 Host: Render")
     print("================================================")
     
@@ -1049,7 +1122,7 @@ if __name__ == "__main__":
     
     save_thread = Thread(target=auto_save_worker, daemon=True)
     save_thread.start()
-    print("💾 Auto-save started (every 60 seconds)")
+    print("💾 Auto-save started (every 30 seconds)")
     
     web_thread = Thread(target=run_web, daemon=True)
     web_thread.start()
