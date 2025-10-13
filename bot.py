@@ -14,12 +14,11 @@ from threading import Thread
 import signal
 import sys
 
-print("=== LUNA AI BOT - REDIS STABLE EDITION ===")
+print("=== LUNA AI BOT - ULTRA STABLE EDITION ===")
 
 # ==================== КОНФИГУРАЦИЯ ====================
 API_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
-REDIS_URL = os.environ.get('REDIS_URL')  # Новый Redis
 
 if not API_TOKEN:
     print("❌ TELEGRAM_BOT_TOKEN not found!")
@@ -27,180 +26,94 @@ if not API_TOKEN:
 else:
     bot = telebot.TeleBot(API_TOKEN)
 
-# ==================== REDIS БАЗА ДАННЫХ ====================
-try:
-    import redis
-    REDIS_AVAILABLE = True
-except ImportError:
-    print("❌ Redis not installed. Install: pip install redis")
-    REDIS_AVAILABLE = False
-
-class LunaDatabase:
-    def __init__(self, redis_url=None):
-        self.redis = None
-        if redis_url and REDIS_AVAILABLE:
-            try:
-                self.redis = redis.from_url(redis_url)
-                # Test connection
-                self.redis.ping()
-                print("✅ Redis database connected successfully")
-            except Exception as e:
-                print(f"❌ Redis connection failed: {e}")
-                self.redis = None
-        else:
-            print("⚠️ Redis not configured, using memory storage")
-        
-        # In-memory cache for performance
-        self.user_stats_cache = {}
-        self.user_gender_cache = {}
-        self.user_context_cache = {}
-
+# ==================== ПРОСТАЯ БАЗА ДАННЫХ В ПАМЯТИ С БЭКАПАМИ ====================
+class SimpleDatabase:
+    def __init__(self):
+        self.data_file = 'bot_data.json'
+        self.user_stats = {}
+        self.user_gender = {} 
+        self.user_context = {}
+        self.load_data()
+        print("✅ Simple Database initialized")
+    
+    def load_data(self):
+        """Загружаем данные из файла при старте"""
+        try:
+            if os.path.exists(self.data_file):
+                with open(self.data_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.user_stats = data.get('user_stats', {})
+                    self.user_gender = data.get('user_gender', {})
+                    self.user_context = data.get('user_context', {})
+                print(f"💾 Loaded: {len(self.user_stats)} users, {sum(stats.get('message_count', 0) for stats in self.user_stats.values())} messages")
+            else:
+                print("💾 No existing data file, starting fresh")
+        except Exception as e:
+            print(f"❌ Load data error: {e}")
+    
+    def save_data(self):
+        """Сохраняем данные в файл"""
+        try:
+            data = {
+                'user_stats': self.user_stats,
+                'user_gender': self.user_gender, 
+                'user_context': self.user_context,
+                'last_save': datetime.datetime.now().isoformat()
+            }
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            print("💾 Data saved to file")
+        except Exception as e:
+            print(f"❌ Save data error: {e}")
+    
     def get_user_stats(self, user_id):
-        """Get user stats from Redis or create new"""
-        try:
-            # First check memory cache
-            if user_id in self.user_stats_cache:
-                return self.user_stats_cache[user_id]
-            
-            # Try Redis
-            if self.redis:
-                stats_json = self.redis.get(f"luna:user_stats:{user_id}")
-                if stats_json:
-                    stats = json.loads(stats_json)
-                    self.user_stats_cache[user_id] = stats
-                    return stats
-            
-            # Create new user
-            new_stats = {
+        user_id_str = str(user_id)
+        if user_id_str not in self.user_stats:
+            self.user_stats[user_id_str] = {
                 'message_count': 0,
                 'first_seen': datetime.datetime.now().isoformat(),
-                'last_seen': datetime.datetime.now().isoformat(),
+                'last_seen': datetime.datetime.now().isoformat(), 
                 'current_level': 1
             }
-            self.update_user_stats(user_id, new_stats)
-            return new_stats
-            
-        except Exception as e:
-            print(f"❌ Get stats error for user {user_id}: {e}")
-            # Fallback
-            return {
-                'message_count': 0,
-                'first_seen': datetime.datetime.now().isoformat(),
-                'last_seen': datetime.datetime.now().isoformat(),
-                'current_level': 1
-            }
-
+        return self.user_stats[user_id_str]
+    
     def update_user_stats(self, user_id, stats):
-        """Save user stats to Redis and cache"""
-        try:
-            # Update cache
-            self.user_stats_cache[user_id] = stats
-            
-            # Save to Redis
-            if self.redis:
-                self.redis.set(f"luna:user_stats:{user_id}", json.dumps(stats))
-                self.redis.sadd("luna:active_users", user_id)
-                
-        except Exception as e:
-            print(f"❌ Update stats error for user {user_id}: {e}")
-
+        user_id_str = str(user_id)
+        self.user_stats[user_id_str] = stats
+    
     def get_user_gender(self, user_id):
-        try:
-            if user_id in self.user_gender_cache:
-                return self.user_gender_cache[user_id]
-                
-            if self.redis:
-                gender = self.redis.get(f"luna:user_gender:{user_id}")
-                if gender:
-                    gender_str = gender.decode()
-                    self.user_gender_cache[user_id] = gender_str
-                    return gender_str
-                    
-            return 'unknown'
-        except:
-            return 'unknown'
-
+        return self.user_gender.get(str(user_id), 'unknown')
+    
     def update_user_gender(self, user_id, gender):
-        try:
-            self.user_gender_cache[user_id] = gender
-            if self.redis:
-                self.redis.set(f"luna:user_gender:{user_id}", gender)
-        except Exception as e:
-            print(f"❌ Update gender error: {e}")
-
+        self.user_gender[str(user_id)] = gender
+    
     def get_conversation_context(self, user_id):
-        try:
-            if user_id in self.user_context_cache:
-                return self.user_context_cache[user_id]
-                
-            if self.redis:
-                context_json = self.redis.get(f"luna:user_context:{user_id}")
-                if context_json:
-                    context = json.loads(context_json)
-                    self.user_context_cache[user_id] = context
-                    return context
-                    
-            return []
-        except:
-            return []
-
+        return self.user_context.get(str(user_id), [])
+    
     def update_conversation_context(self, user_id, context):
-        try:
-            self.user_context_cache[user_id] = context
-            if self.redis:
-                self.redis.set(f"luna:user_context:{user_id}", json.dumps(context))
-        except Exception as e:
-            print(f"❌ Update context error: {e}")
-
+        self.user_context[str(user_id)] = context
+    
     def get_all_users(self):
-        """Get all active users for statistics"""
-        try:
-            if self.redis:
-                users = self.redis.smembers("luna:active_users")
-                return [int(user_id.decode()) for user_id in users]
-            else:
-                # Fallback to cache keys
-                return list(self.user_stats_cache.keys())
-        except:
-            return []
-
+        return list(self.user_stats.keys())
+    
     def get_total_messages(self):
-        """Get total messages across all users"""
-        try:
-            total = 0
-            if self.redis:
-                # Get all user IDs
-                user_ids = self.redis.smembers("luna:active_users")
-                for user_id in user_ids:
-                    stats_json = self.redis.get(f"luna:user_stats:{user_id.decode()}")
-                    if stats_json:
-                        stats = json.loads(stats_json)
-                        total += stats.get('message_count', 0)
-            else:
-                # Fallback to cache
-                for stats in self.user_stats_cache.values():
-                    total += stats.get('message_count', 0)
-                    
-            return total
-        except Exception as e:
-            print(f"❌ Get total messages error: {e}")
-            return 0
+        return sum(stats.get('message_count', 0) for stats in self.user_stats.values())
 
-# Initialize database
-db = LunaDatabase(REDIS_URL)
+# Инициализируем базу
+db = SimpleDatabase()
 
 # ==================== GRACEFUL SHUTDOWN ====================
 def signal_handler(signum, frame):
     print("🚨 Received shutdown signal...")
-    print("💾 Saving all data...")
-    auto_save_data()
-    print("✅ All data saved. Shutting down gracefully...")
+    print("💾 Emergency saving data...")
+    db.save_data()
+    print("✅ Data saved. Shutting down...")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
-# ==================== WEB SERVER FOR RENDER ====================
+# ==================== WEB SERVER FOR 24/7 ====================
 app = Flask(__name__)
 start_time = datetime.datetime.now()
 
@@ -214,6 +127,7 @@ def home():
     <html>
         <head>
             <title>Luna AI Bot</title>
+            <meta http-equiv="refresh" content="30">
             <style>
                 body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; 
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }}
@@ -227,14 +141,14 @@ def home():
         <body>
             <div class="container">
                 <h1>🤖 Luna AI Bot</h1>
-                <div class="status">🟢 ONLINE & DATA PERSISTENT</div>
+                <div class="status">🟢 24/7 ONLINE</div>
                 <div class="info">
                     <strong>Uptime:</strong> {str(uptime).split('.')[0]}<br>
                     <strong>Total Users:</strong> <span class="data">{total_users}</span><br>
                     <strong>Total Messages:</strong> <span class="data">{total_messages}</span><br>
-                    <strong>Storage:</strong> <span class="data">Redis</span>
+                    <strong>Last Save:</strong> <span class="data">{datetime.datetime.now().strftime('%H:%M:%S')}</span>
                 </div>
-                <p>Your progress is permanently saved! 💾</p>
+                <p>Progress is auto-saved every minute! 💾</p>
             </div>
         </body>
     </html>
@@ -247,16 +161,21 @@ def health():
         "timestamp": datetime.datetime.now().isoformat(),
         "users": len(db.get_all_users()),
         "total_messages": db.get_total_messages(),
-        "storage": "redis" if db.redis else "memory"
+        "uptime": str(datetime.datetime.now() - start_time)
     }
 
 @app.route('/ping')
 def ping():
     return "pong"
 
+@app.route('/save')
+def manual_save():
+    db.save_data()
+    return "✅ Data saved manually!"
+
 def run_web():
     port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 Starting web server on port {port}")
+    print(f"🌐 Starting 24/7 web server on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
 
 # ==================== КОНФИГУРАЦИЯ БОТА ====================
@@ -277,19 +196,20 @@ The more we chat, the closer we become! 🌟
 🎯 Our Journey:
 💖 Friend → ❤️ Crush → 💕 Lover → 👑 Soulmate
 
-*Your progress is permanently saved!* 💾
+*Your progress is auto-saved every minute!* 💾
 
 Use buttons below to interact!
 """
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def auto_save_data():
-    """Auto-save is now handled by Redis in real-time"""
-    print("💾 Data persistence active (Redis)")
+    """Авто-сохранение данных"""
+    db.save_data()
 
 @atexit.register
 def save_on_exit():
-    print("💾 Graceful shutdown - all data persisted in Redis")
+    print("💾 Emergency save on exit...")
+    db.save_data()
 
 def detect_user_gender(user_message, username=""):
     male_names = ['alex', 'max', 'mike', 'john', 'david', 'chris', 'andrew', 'daniel']
@@ -471,7 +391,7 @@ if bot:
         user_id = message.chat.id
         stats = db.get_user_stats(user_id)
         
-        welcome_with_stats = WELCOME_MESSAGE + f"\n📊 Your current progress: Level {stats['current_level']}, {stats['message_count']} messages"
+        welcome_with_stats = WELCOME_MESSAGE + f"\n📊 Your progress: Level {stats['current_level']}, {stats['message_count']} messages"
         bot.reply_to(message, welcome_with_stats, parse_mode='Markdown')
         show_main_menu(user_id)
 
@@ -481,8 +401,8 @@ if bot:
 
     @bot.message_handler(commands=['save'])
     def handle_save(message):
-        auto_save_data()
-        bot.reply_to(message, "💾 All data is automatically saved in Redis! 🔒")
+        db.save_data()
+        bot.reply_to(message, "💾 All data saved manually! 🔒")
 
     @bot.message_handler(commands=['status'])
     def handle_status(message):
@@ -490,26 +410,23 @@ if bot:
         total_users = len(db.get_all_users())
         total_messages = db.get_total_messages()
         
-        storage_type = "Redis" if db.redis else "Memory"
-        storage_status = "✅ Persistent" if db.redis else "⚠️ Temporary"
-        
         status_text = f"""
 🤖 *Luna Bot Status*
 
-🟢 **Online**: Stable & Persistent
+🟢 **Online**: 24/7 Active
 ⏰ **Uptime**: {str(uptime).split('.')[0]}
 👥 **Total Users**: {total_users}
 💬 **Total Messages**: {total_messages}
-💾 **Storage**: {storage_type} {storage_status}
+💾 **Auto-save**: Every minute
 🧠 **API**: Groq
 
-*Your progress is permanently saved!* 💖
+*Your progress is safe!* 💖
 """
         bot.reply_to(message, status_text, parse_mode='Markdown')
 
     @bot.message_handler(commands=['ping'])
     def handle_ping(message):
-        bot.reply_to(message, "🏓 Pong! Bot is alive and data is persistent! 💾")
+        bot.reply_to(message, "🏓 Pong! Bot is alive and saving progress! 💾")
 
     @bot.message_handler(commands=['myprogress'])
     def handle_myprogress(message):
@@ -519,14 +436,14 @@ if bot:
         progress_text, progress_percent = get_level_progress(stats['message_count'])
         
         progress_info = f"""
-📊 *Your Permanent Progress*
+📊 *Your Progress*
 
 💬 Messages: *{stats['message_count']}*
 🌟 Current Level: *{level_info['name']}* {level_info['color']}
 🎯 Progress: {progress_text}
 📅 First seen: {stats['first_seen'][:10]}
 
-*This progress is saved forever!* 💾
+*Auto-saved every minute!* 💾
 """
         bot.reply_to(message, progress_info, parse_mode='Markdown')
 
@@ -569,7 +486,7 @@ if bot:
 
 💬 Messages: *{message_count}*
 🌟 Level: *{level_info['name']}*
-💾 Storage: *Permanent*
+💾 Storage: *Auto-saved*
 
 Keep chatting! 💫
 """
@@ -593,7 +510,7 @@ Keep chatting! 💫
 
 {progress_bar} {int(progress_percent)}%
 
-*Progress permanently saved!* 💾
+*Progress auto-saved!* 💾
 """
             bot.send_message(user_id, level_text, parse_mode='Markdown')
 
@@ -620,7 +537,7 @@ Keep chatting! 💫
         if new_level > old_level:
             stats['current_level'] = new_level
             db.update_user_stats(user_id, stats)
-            level_up_text = f"🎉 *LEVEL UP!* You're now {new_level_info['name']}! {new_level_info['color']}\n\n*This achievement is permanently saved!* 💾"
+            level_up_text = f"🎉 *LEVEL UP!* You're now {new_level_info['name']}! {new_level_info['color']}\n\n*Progress saved!* 💾"
             bot.send_message(user_id, level_up_text, parse_mode='Markdown')
 
         greeting = get_gendered_greeting(user_id, user_message, username)
@@ -632,14 +549,13 @@ Keep chatting! 💫
         bot.reply_to(message, ai_response)
         update_conversation_context(user_id, user_message, ai_response)
 
-# ==================== АВТО-СОХРАНЕНИЕ ====================
+# ==================== АВТО-СОХРАНЕНИЕ КАЖДУЮ МИНУТУ ====================
 def auto_save_worker():
-    """Periodic health check"""
+    """Сохраняем данные каждую минуту"""
     while True:
-        time.sleep(300)  # Every 5 minutes
-        total_users = len(db.get_all_users())
-        total_messages = db.get_total_messages()
-        print(f"💾 Health check: {total_users} users, {total_messages} total messages")
+        time.sleep(60)  # Каждую минуту!
+        db.save_data()
+        print(f"💾 Auto-save: {len(db.get_all_users())} users, {db.get_total_messages()} messages")
 
 # ==================== ЗАПУСК ====================
 def start_bot():
@@ -649,12 +565,12 @@ def start_bot():
         return
         
     restart_count = 0
-    max_restarts = 10
+    max_restarts = 100  # Очень много попыток!
     
     while restart_count < max_restarts:
         try:
             print(f"\n🚀 Starting Luna Bot... (Attempt {restart_count + 1})")
-            print("✅ Database: Redis Persistent" if db.redis else "⚠️ Database: Memory Only")
+            print("✅ Database: Simple JSON (auto-save every minute)")
             print("✅ Web server: Ready") 
             print("✅ Groq API: Ready" if GROQ_API_KEY else "⚠️ Groq API: Not configured")
             
@@ -666,22 +582,22 @@ def start_bot():
             bot_info = bot.get_me()
             print(f"✅ Bot: @{bot_info.username} is ready!")
             
-            # Stable polling
-            bot.polling(none_stop=True, timeout=90, long_polling_timeout=90)
+            # Супер стабильный polling
+            bot.polling(none_stop=True, timeout=120, long_polling_timeout=120)
             
         except Exception as e:
             restart_count += 1
             print(f"🚨 Bot crashed: {e}")
-            print(f"💤 Restarting in 15 seconds...")
-            time.sleep(15)
+            print(f"💤 Restarting in 10 seconds...")
+            time.sleep(10)
     
     print("🔴 Max restarts reached")
 
 if __name__ == "__main__":
     print("================================================")
-    print("🤖 LUNA AI BOT - REDIS PERSISTENT EDITION")
+    print("🤖 LUNA AI BOT - ULTRA STABLE 24/7")
     print("💖 Relationship levels: 4")
-    print("💾 Storage: Redis (Permanent)")
+    print("💾 Storage: JSON file (auto-save every 60s)")
     print("🧠 AI: Groq API") 
     print("🌐 Host: Render")
     print("================================================")
@@ -691,15 +607,15 @@ if __name__ == "__main__":
     total_messages = db.get_total_messages()
     print(f"📊 Loaded: {total_users} users, {total_messages} messages")
     
-    # Start auto-save health check
+    # Start auto-save каждую минуту!
     save_thread = Thread(target=auto_save_worker, daemon=True)
     save_thread.start()
-    print("💾 Health monitor started")
+    print("💾 Auto-save started (every 60 seconds)")
     
     # Start web server
     web_thread = Thread(target=run_web, daemon=True)
     web_thread.start()
-    print("🌐 Web server started")
+    print("🌐 24/7 Web server started")
     
     # Start bot
     start_bot()
