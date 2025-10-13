@@ -97,31 +97,33 @@ class SimpleDatabase:
                 }
             }
     
+    def make_achievements_serializable(self):
+        """🛠️ ФИКС: Конвертируем set в list для JSON"""
+        serializable_achievements = {}
+        for user_id, achievements in self.user_achievements.items():
+            serializable_achievements[user_id] = {
+                'unlocked': achievements['unlocked'],
+                'progress': {
+                    'messages_sent': achievements['progress']['messages_sent'],
+                    'buttons_used': achievements['progress']['buttons_used'],
+                    'different_buttons': list(achievements['progress']['different_buttons']),  # 🛠️ set -> list
+                    'levels_reached': achievements['progress']['levels_reached'],
+                    'days_active': achievements['progress']['days_active']
+                }
+            }
+        return serializable_achievements
+    
     def save_data(self):
         """СУПЕР-НАДЕЖНОЕ сохранение"""
         try:
             print(f"💾 Saving data for {len(self.user_stats)} users...")
-            
-            # 🛠️ ФИКС: Конвертируем set в list для JSON
-            serializable_achievements = {}
-            for user_id, achievements in self.user_achievements.items():
-                serializable_achievements[user_id] = {
-                    'unlocked': achievements['unlocked'],
-                    'progress': {
-                        'messages_sent': achievements['progress']['messages_sent'],
-                        'buttons_used': achievements['progress']['buttons_used'],
-                        'different_buttons': list(achievements['progress']['different_buttons']),  # 🛠️ set -> list
-                        'levels_reached': achievements['progress']['levels_reached'],
-                        'days_active': achievements['progress']['days_active']
-                    }
-                }
             
             data = {
                 'user_stats': self.user_stats,
                 'user_gender': self.user_gender, 
                 'user_context': self.user_context,
                 'premium_users': self.premium_users,
-                'user_achievements': serializable_achievements,  # 🛠️ Используем исправленную версию
+                'user_achievements': self.make_achievements_serializable(),  # 🛠️ Используем исправленную версию
                 'last_save': datetime.datetime.now().isoformat(),
                 'total_users': len(self.user_stats),
                 'total_messages': self.get_total_messages(),
@@ -147,26 +149,12 @@ class SimpleDatabase:
         try:
             print("🚨 QUICK SAVE - Emergency mode!")
             
-            # 🛠️ ФИКС: Конвертируем set в list для JSON
-            serializable_achievements = {}
-            for user_id, achievements in self.user_achievements.items():
-                serializable_achievements[user_id] = {
-                    'unlocked': achievements['unlocked'],
-                    'progress': {
-                        'messages_sent': achievements['progress']['messages_sent'],
-                        'buttons_used': achievements['progress']['buttons_used'],
-                        'different_buttons': list(achievements['progress']['different_buttons']),
-                        'levels_reached': achievements['progress']['levels_reached'],
-                        'days_active': achievements['progress']['days_active']
-                    }
-                }
-            
             data = {
                 'user_stats': self.user_stats,
                 'user_gender': self.user_gender,
                 'user_context': self.user_context,
                 'premium_users': self.premium_users,
-                'user_achievements': serializable_achievements,
+                'user_achievements': self.make_achievements_serializable(),  # 🛠️ ТОЖЕ ИСПРАВЛЕНО!
                 'last_save': datetime.datetime.now().isoformat(),
                 'save_type': 'emergency'
             }
@@ -177,16 +165,6 @@ class SimpleDatabase:
             print("✅ Emergency save completed!")
         except Exception as e:
             print(f"❌ EMERGENCY SAVE FAILED: {e}")
-    
-    def memory_backup(self):
-        """Бэкап в оперативную память"""
-        current_time = time.time()
-        if current_time - self.last_backup_time >= self.backup_interval:
-            self.last_memory_backup = {
-                'user_stats': self.user_stats.copy(),
-                'timestamp': datetime.datetime.now().isoformat()
-            }
-            self.last_backup_time = current_time
 
     def get_user_achievements(self, user_id):
         user_id_str = str(user_id)
@@ -1103,7 +1081,6 @@ def auto_save_worker():
     while True:
         time.sleep(30)
         db.save_data()
-        db.memory_backup()
         print(f"💾 Auto-save: {len(db.get_all_users())} users, {db.get_total_messages()} messages")
 
 # ==================== ЗАПУСК ====================
