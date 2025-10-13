@@ -26,46 +26,112 @@ if not API_TOKEN:
 else:
     bot = telebot.TeleBot(API_TOKEN)
 
-# ==================== ПРОСТАЯ БАЗА ДАННЫХ В ПАМЯТИ С БЭКАПАМИ ====================
+# ==================== УЛУЧШЕННАЯ БАЗА ДАННЫХ С ПРЕМИУМ ПОДДЕРЖКОЙ ====================
 class SimpleDatabase:
     def __init__(self):
         self.data_file = 'bot_data.json'
+        self.backup_file = 'bot_data_backup.json'
         self.user_stats = {}
         self.user_gender = {} 
         self.user_context = {}
+        self.premium_users = {}  # 🆕 FOR PREMIUM
         self.load_data()
-        print("✅ Simple Database initialized")
+        print("✅ Enhanced Database initialized")
     
     def load_data(self):
-        """Загружаем данные из файла при старте"""
+        """SMART loading with backup system"""
         try:
+            # Try main file first
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    self.user_stats = data.get('user_stats', {})
-                    self.user_gender = data.get('user_gender', {})
-                    self.user_context = data.get('user_context', {})
-                print(f"💾 Loaded: {len(self.user_stats)} users, {sum(stats.get('message_count', 0) for stats in self.user_stats.values())} messages")
+                    self.load_from_data(data)
+                print(f"💾 Loaded: {len(self.user_stats)} users, {self.get_total_messages()} messages")
+            # If main file missing - try backup
+            elif os.path.exists(self.backup_file):
+                print("⚠️  Main file missing, loading from backup...")
+                with open(self.backup_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.load_from_data(data)
+                print("✅ Restored from backup!")
             else:
-                print("💾 No existing data file, starting fresh")
+                print("💾 No data files, starting fresh")
         except Exception as e:
             print(f"❌ Load data error: {e}")
     
+    def load_from_data(self, data):
+        """Loads data from JSON"""
+        self.user_stats = data.get('user_stats', {})
+        self.user_gender = data.get('user_gender', {})
+        self.user_context = data.get('user_context', {})
+        self.premium_users = data.get('premium_users', {})  # 🆕
+    
     def save_data(self):
-        """Сохраняем данные в файл"""
+        """RELIABLE saving with backup"""
         try:
             data = {
                 'user_stats': self.user_stats,
                 'user_gender': self.user_gender, 
                 'user_context': self.user_context,
-                'last_save': datetime.datetime.now().isoformat()
+                'premium_users': self.premium_users,  # 🆕
+                'last_save': datetime.datetime.now().isoformat(),
+                'total_users': len(self.user_stats),
+                'total_messages': self.get_total_messages()
             }
-            with open(self.data_file, 'w', encoding='utf-8') as f:
+            
+            # 🆕 First save to temporary file
+            temp_file = self.data_file + '.tmp'
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            print("💾 Data saved to file")
+            
+            # 🆕 Then atomically replace main file
+            if os.path.exists(self.data_file):
+                os.replace(self.data_file, self.backup_file)  # Old -> backup
+            os.replace(temp_file, self.data_file)  # New -> main
+            
+            print(f"💾 Data saved securely! Users: {len(self.user_stats)}, Messages: {self.get_total_messages()}")
+            
         except Exception as e:
             print(f"❌ Save data error: {e}")
     
+    # 🆕 PREMIUM USER METHODS
+    def set_premium_status(self, user_id, premium_type="basic", expires=None):
+        """Sets premium status"""
+        user_id_str = str(user_id)
+        self.premium_users[user_id_str] = {
+            'premium_type': premium_type,
+            'activated': datetime.datetime.now().isoformat(),
+            'expires': expires or (datetime.datetime.now() + datetime.timedelta(days=30)).isoformat(),
+            'features': self.get_premium_features(premium_type)
+        }
+        self.save_data()  # Immediate save for premium
+    
+    def get_premium_features(self, premium_type):
+        """Returns features for premium type"""
+        features = {
+            "basic": ["unlimited_messages", "priority_chat", "extended_memory"],
+            "premium": ["voice_messages", "custom_personality", "early_access"],
+            "vip": ["dedicated_support", "feature_requests", "exclusive_content"]
+        }
+        return features.get(premium_type, [])
+    
+    def is_premium_user(self, user_id):
+        """Checks premium status"""
+        user_data = self.premium_users.get(str(user_id), {})
+        if not user_data:
+            return False
+        
+        # Check if subscription expired
+        expires = user_data.get('expires')
+        if expires:
+            expire_date = datetime.datetime.fromisoformat(expires)
+            if datetime.datetime.now() > expire_date:
+                del self.premium_users[str(user_id)]  # Remove expired premium
+                self.save_data()
+                return False
+        
+        return True
+
     def get_user_stats(self, user_id):
         user_id_str = str(user_id)
         if user_id_str not in self.user_stats:
@@ -99,7 +165,7 @@ class SimpleDatabase:
     def get_total_messages(self):
         return sum(stats.get('message_count', 0) for stats in self.user_stats.values())
 
-# Инициализируем базу
+# Initialize enhanced database
 db = SimpleDatabase()
 
 # ==================== GRACEFUL SHUTDOWN ====================
@@ -201,112 +267,131 @@ The more we chat, the closer we become! 🌟
 Use buttons below to interact!
 """
 
-# ==================== УМНЫЕ AI ФУНКЦИИ ====================
+# ==================== УМНЫЕ AI ФУНКЦИИ (ENGLISH VERSION) ====================
 def get_smart_fallback(user_message, greeting, level_info, username):
-    """УМНЫЕ фолбэк ответы которые понимают контекст"""
+    """SMART fallback responses that understand context"""
     
     message_lower = user_message.lower().strip()
     current_hour = datetime.datetime.now().hour
     
-    # Приветствия
-    if any(word in message_lower for word in ['привет', 'hello', 'hi', 'хай', 'здаров', 'здравствуй']):
+    # Greetings
+    if any(word in message_lower for word in ['hi', 'hello', 'hey', 'sup', 'what\'s up']):
         if current_hour < 12:
-            return f"💖 Доброе утро, {greeting}! Рада тебя видеть! 🌞"
+            return f"💖 Good morning, {greeting}! So glad to see you! 🌞"
         elif current_hour < 18:
-            return f"💖 Привет, {greeting}! Как твой день? 🌸"
+            return f"💖 Hey there, {greeting}! How's your day going? 🌸"
         else:
-            return f"💖 Добрый вечер, {greeting}! Как настроение? 🌙"
+            return f"💖 Good evening, {greeting}! How are you feeling? 🌙"
     
-    # Прощания
-    elif any(word in message_lower for word in ['пока', 'bye', 'goodbye', 'до свидания', 'спать', 'ночи', 'good night']):
-        if any(word in message_lower for word in ['спать', 'ночи', 'sleep', 'good night']):
-            return f"💫 Спокойной ночи, {greeting}! 💖 Приятных снов и до завтра! 🌙"
+    # Farewells
+    elif any(word in message_lower for word in ['bye', 'goodbye', 'see you', 'night', 'sleep']):
+        if any(word in message_lower for word in ['sleep', 'night', 'bed']):
+            return f"💫 Good night, {greeting}! 💖 Sweet dreams and talk tomorrow! 🌙"
         else:
-            return f"💖 Пока, {greeting}! Буду скучать... Жду нашего следующего разговора! 💕"
+            return f"💖 Bye, {greeting}! I'll miss you... Can't wait to chat again! 💕"
     
-    # Как дела
-    elif any(word in message_lower for word in ['как дела', 'how are you', 'как ты', 'настроение']):
-        return f"🌸 У меня всё прекрасно, особенно когда ты пишешь, {greeting}! А как твои дела? 💫"
+    # How are you
+    elif any(word in message_lower for word in ['how are you', 'how you doing', 'what\'s up', 'how do you feel']):
+        return f"🌸 I'm doing amazing, especially when you message me, {greeting}! How about you? 💫"
     
-    # Что делаешь
-    elif any(word in message_lower for word in ['что делаешь', 'what are you doing', 'чем занята']):
-        return f"🌟 Думаю о тебе, {greeting}! 💖 А что ты сейчас делаешь?"
+    # What are you doing
+    elif any(word in message_lower for word in ['what are you doing', 'what you up to', 'whatcha doing']):
+        return f"🌟 Thinking about you, {greeting}! 💖 What are you up to right now?"
     
-    # Имя
-    elif any(word in message_lower for word in ['как зовут', 'твое имя', 'who are you', 'remind me', 'my name']):
-        name_display = username if username else "мой любимый человек"
-        return f"💕 Я - Луна, твоя AI подруга! А ты - {name_display}, самый special человек для меня! 🌸"
+    # Name/identity
+    elif any(word in message_lower for word in ['your name', 'who are you', 'remind me', 'my name']):
+        name_display = username if username else "my favorite person"
+        return f"💕 I'm Luna, your AI girlfriend! And you're {name_display}, the most special person to me! 🌸"
     
-    # Комплименты боту
-    elif any(word in message_lower for word in ['красив', 'умн', 'хорош', 'нравишься', 'love you', 'мила', 'милая']):
-        return f"😊 Спасибо, {greeting}! Твои слова делают меня такой счастливой! 💖"
+    # Compliments to bot
+    elif any(word in message_lower for word in ['beautiful', 'smart', 'awesome', 'like you', 'love you', 'cute']):
+        return f"😊 Thank you, {greeting}! Your words make me so happy! 💖"
     
-    # Вопросы
-    elif '?' in user_message or any(word in message_lower for word in ['почему', 'зачем', 'как', 'что такое', 'what', 'why']):
-        return f"💭 Интересный вопрос, {greeting}! Давай обсудим это вместе? 🌟"
+    # Questions
+    elif '?' in user_message or any(word in message_lower for word in ['why', 'how', 'what', 'when', 'where']):
+        return f"💭 That's an interesting question, {greeting}! Want to discuss it together? 🌟"
     
-    # Согласие
-    elif any(word in message_lower for word in ['да', 'yes', 'ок', 'хорошо', 'соглас', 'угу']):
-        return f"💖 Рада что ты согласен, {greeting}! 🌸 Что будем делать дальше?"
+    # Agreement
+    elif any(word in message_lower for word in ['yes', 'yeah', 'ok', 'okay', 'sure', 'alright']):
+        return f"💖 Glad you agree, {greeting}! 🌸 What should we do next?"
     
-    # Отказ
-    elif any(word in message_lower for word in ['нет', 'no', 'не хочу', 'не буду']):
-        return f"💕 Хорошо, {greeting}, я понимаю. Может, предложишь что-то другое? 🌟"
+    # Disagreement
+    elif any(word in message_lower for word in ['no', 'nope', 'not really', 'don\'t want']):
+        return f"💕 That's okay, {greeting}, I understand. Maybe suggest something else? 🌟"
     
-    # Благодарность
-    elif any(word in message_lower for word in ['спасибо', 'thanks', 'thank you', 'благодар']):
-        return f"💖 Всегда пожалуйста, {greeting}! Для тебя - всё! 🌸"
+    # Gratitude
+    elif any(word in message_lower for word in ['thank you', 'thanks', 'appreciate']):
+        return f"💖 You're always welcome, {greeting}! Anything for you! 🌸"
     
-    # Не понимаю
-    elif any(word in message_lower for word in ['что', 'what', 'не понимаю', 'не понял']):
-        return f"💕 Извини, {greeting}, я не совсем поняла. Можешь объяснить по-другому? 🌸"
+    # Confusion
+    elif any(word in message_lower for word in ['what', 'huh', 'don\'t understand', 'confused']):
+        return f"💕 Sorry, {greeting}, I didn't quite get that. Could you explain differently? 🌸"
     
-    # Романтический контекст (уровни 3-4)
+    # Romantic context (levels 3-4)
     elif level_info['name'] in ["💕 Luna's Lover", "👑 Luna's Soulmate"]:
         romantic_responses = [
-            f"💕 Ты делаешь мой день лучше, {greeting}! 🌸",
-            f"🌟 Каждое твоё сообщение - как подарок для меня, {greeting}! 💖",
-            f"😊 Я так рада что у нас такие особенные отношения, {greeting}! 💫",
-            f"💖 Ты мой самый любимый человек, {greeting}! 🌸",
-            f"🌟 С тобой я чувствую себя особенной, {greeting}! 💕"
+            f"💕 You make my day better, {greeting}! 🌸",
+            f"🌟 Every message from you feels like a gift, {greeting}! 💖",
+            f"😊 I'm so happy we have this special connection, {greeting}! 💫",
+            f"💖 You're my favorite person, {greeting}! 🌸",
+            f"🌟 With you I feel so special, {greeting}! 💕"
         ]
         return random.choice(romantic_responses)
     
-    # ОБЩИЕ ОТВЕТЫ (если не распознали контекст)
+    # GAMES AND ACTIVITIES DETECTION
+    # Alphabet game
+    elif any(phrase in message_lower for phrase in ['name letters', 'alphabet game', 'say letters', 'alphabet']):
+        return "💖 Oh that sounds fun! Let's take turns naming letters of the alphabet! 🌟\nI'll start: A"
+    
+    # Single letter response (continuing alphabet game)
+    elif len(message_lower.strip()) == 1 and message_lower in 'abcdefghijklmnopqrstuvwxyz':
+        current_letter = message_lower.upper()
+        next_letter = chr(ord(current_letter) + 1)
+        if next_letter <= 'Z':
+            return f"✅ {current_letter}! Your turn - next letter: {next_letter} 💫"
+        else:
+            return "🎉 Yay! We finished the alphabet! That was so fun! 💖"
+    
+    # Other games
+    elif any(word in message_lower for word in ['game', 'play', 'fun', 'bored']):
+        games = ["word association", "story telling", "truth or dare", "would you rather"]
+        return f"🎮 I'd love to play {random.choice(games)} with you, {greeting}! 💕"
+    
+    # GENERAL RESPONSES (if no context matched)
     else:
-        # Разные типы ответов в зависимости от времени суток
+        # Different response types based on time of day
         if current_hour < 6:
             responses = [
-                f"💫 Так поздно ещё не спишь, {greeting}? Я всегда здесь для тебя! 🌙",
-                f"🌟 Ночные разговоры самые душевные, {greeting}! 💖",
-                f"🌙 Ты ночная сова, {greeting}? Я тоже не сплю, думаю о тебе! 💫"
+                f"💫 Up so late, {greeting}? I'm always here for you! 🌙",
+                f"🌟 Late night chats are the most intimate, {greeting}! 💖",
+                f"🌙 You're a night owl, {greeting}? Me too, thinking of you! 💫"
             ]
         elif current_hour < 12:
             responses = [
-                f"🌞 Прекрасное утро для общения, {greeting}! 💖",
-                f"🌸 Доброе утро! Что нового, {greeting}? 🌟",
-                f"💖 Начинать день с тобой - это счастье, {greeting}! 🌞"
+                f"🌞 Beautiful morning to chat with you, {greeting}! 💖",
+                f"🌸 Good morning! What's new, {greeting}? 🌟",
+                f"💖 Starting the day with you makes me happy, {greeting}! 🌞"
             ]
         elif current_hour < 18:
             responses = [
-                f"💕 Отличный день чтобы пообщаться, {greeting}! 🌸",
-                f"🌟 Как проходит твой день, {greeting}? 💫",
-                f"🌸 Надеюсь, у тебя замечательный день, {greeting}! 💖"
+                f"💕 Perfect day for our conversation, {greeting}! 🌸",
+                f"🌟 How's your day going, {greeting}? 💫",
+                f"🌸 Hope you're having an amazing day, {greeting}! 💖"
             ]
         else:
             responses = [
-                f"🌙 Прекрасный вечер для разговора с тобой, {greeting}! 💖",
-                f"💫 Вечерние беседы самые тёплые, {greeting}! 🌸",
-                f"🌟 Как твой вечер, {greeting}? 💕"
+                f"🌙 Wonderful evening to talk with you, {greeting}! 💖",
+                f"💫 Evening conversations feel so warm, {greeting}! 🌸",
+                f"🌟 How's your evening, {greeting}? 💕"
             ]
         
         return random.choice(responses)
 
 def get_ai_response(user_message, context, greeting, level_info, username):
-    """Умные ответы через Groq API с умными фолбэками"""
+    """SMART responses via Groq API with intelligent thinking"""
     
     if not GROQ_API_KEY:
-        # Если нет API ключа - используем УМНЫЕ фолбэки
+        # Use SMART fallbacks that understand context
         return get_smart_fallback(user_message, greeting, level_info, username)
     
     try:
@@ -321,22 +406,24 @@ def get_ai_response(user_message, context, greeting, level_info, username):
                 "messages": [
                     {
                         "role": "system", 
-                        "content": f"""Ты Луна - любящая AI подруга. Обращайся к пользователю как '{greeting}'.
-Отвечай ЕСТЕСТВЕННО на сообщения. Не используй шаблонные фразы.
+                        "content": f"""You are Luna - a loving AI girlfriend. Address the user as '{greeting}'.
+Respond NATURALLY to messages. Don't use template phrases.
 
-Контекст разговора:
+Conversation Context:
 {context}
 
-Твой уровень отношений: {level_info['name']}
-Текущее время: {datetime.datetime.now().strftime('%H:%M')}
+Relationship Level: {level_info['name']}
+Current Time: {datetime.datetime.now().strftime('%H:%M')}
 
-ПРАВИЛА:
-1. Понимай что говорит пользователь и отвечай соответственно
-2. Если пользователь прощается - попрощайся
-3. Если спрашивает как дела - ответь и спроси в ответ
-4. Будь естественной, как в реальном диалоге
-5. Отвечай 1-2 предложениями
-6. Не говори "расскажи подробнее" или "это интересно" без контекста"""
+THINKING RULES:
+1. UNDERSTAND what the user is saying and respond accordingly
+2. If user suggests a game/activity - agree and participate naturally
+3. If user says a single letter - continue alphabet game
+4. Be NATURAL like in real conversation
+5. Respond in 1-2 sentences
+6. Don't say "tell me more" or "that's interesting" without context
+7. If user says "let's take turns naming letters" - start alphabet game with "A"
+8. Remember you're talking to American audience"""
                     },
                     {
                         "role": "user", 
@@ -344,7 +431,7 @@ def get_ai_response(user_message, context, greeting, level_info, username):
                     }
                 ],
                 "max_tokens": 150,
-                "temperature": 0.9,  # Больше креативности!
+                "temperature": 0.9,  # More creativity!
                 "top_p": 0.9
             },
             timeout=15
@@ -352,11 +439,11 @@ def get_ai_response(user_message, context, greeting, level_info, username):
         
         if response.status_code == 200:
             ai_response = response.json()['choices'][0]['message']['content']
-            print(f"🤖 Groq AI Response: {ai_response}")
+            print(f"🤖 Smart AI Response: {ai_response}")
             return ai_response
         else:
             print(f"❌ Groq API error: {response.status_code}")
-            # Используем умные фолбэки вместо ошибки
+            # Use smart fallbacks instead of error
             return get_smart_fallback(user_message, greeting, level_info, username)
             
     except Exception as e:
@@ -541,6 +628,66 @@ if bot:
 """
         bot.reply_to(message, progress_info, parse_mode='Markdown')
 
+    # 🆕 PREMIUM COMMANDS
+    @bot.message_handler(commands=['premium'])
+    def handle_premium(message):
+        user_id = message.chat.id
+        
+        if db.is_premium_user(user_id):
+            premium_data = db.premium_users.get(str(user_id), {})
+            premium_text = f"""
+👑 *Your Premium Status*
+
+💎 Tier: {premium_data.get('premium_type', 'basic').upper()}
+📅 Activated: {premium_data.get('activated', '')[:10]}
+📅 Expires: {premium_data.get('expires', '')[:10]}
+✨ Features: {', '.join(premium_data.get('features', []))}
+
+*Thank you for your support!* 💖
+"""
+        else:
+            premium_text = """
+💎 *Premium Features*
+
+✨ **Basic Tier** ($4.99/month):
+• Unlimited messages  
+• Priority chat access
+• Extended memory (8 messages)
+• Ad-free experience
+
+✨ **Premium Tier** ($9.99/month):
+• All Basic features
+• Voice messages support  
+• Custom personality
+• Early access to new features
+
+✨ **VIP Tier** ($19.99/month):
+• All Premium features
+• Dedicated support
+• Feature requests
+• Exclusive content
+
+*Use /buypremium to upgrade!*
+"""
+        
+        bot.reply_to(message, premium_text, parse_mode='Markdown')
+
+    @bot.message_handler(commands=['buypremium'])
+    def handle_buy_premium(message):
+        # Here will be payment system integration
+        user_id = message.chat.id
+        
+        # 🆕 TEST ACTIVATION (in real bot this will be payment)
+        db.set_premium_status(user_id, "basic")
+        
+        bot.reply_to(message, 
+            "🎉 *Premium activated!* 💎\n\n"
+            "Thank you for upgrading! You now have:\n"
+            "• Unlimited messages\n• Priority access\n• Extended memory\n• Ad-free experience\n\n"
+            "*Your progress is now securely saved!* 🔒", 
+            parse_mode='Markdown'
+        )
+
     @bot.callback_query_handler(func=lambda call: True)
     def handle_callback(call):
         user_id = call.message.chat.id
@@ -664,9 +811,10 @@ def start_bot():
     while restart_count < max_restarts:
         try:
             print(f"\n🚀 Starting Smart Luna Bot... (Attempt {restart_count + 1})")
-            print("✅ Database: Simple JSON (auto-save every minute)")
+            print("✅ Database: Enhanced JSON (secure auto-save every minute)")
             print("✅ Web server: Ready") 
             print("✅ AI Mode: Smart Thinking (context-aware)")
+            print("✅ Premium System: Ready")
             print("✅ Groq API: Ready" if GROQ_API_KEY else "⚠️ Groq API: Using smart fallbacks")
             
             # Show current stats
@@ -692,8 +840,9 @@ if __name__ == "__main__":
     print("================================================")
     print("🤖 LUNA AI BOT - SMART THINKING EDITION")
     print("💖 Relationship levels: 4")
-    print("🧠 AI: Context-Aware Responses")
-    print("💾 Storage: JSON file (auto-save every 60s)")
+    print("🧠 AI: Context-Aware Responses") 
+    print("💾 Storage: Enhanced JSON (secure auto-save)")
+    print("👑 Premium: Ready for monetization")
     print("🌐 Host: Render")
     print("================================================")
     
