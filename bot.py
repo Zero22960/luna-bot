@@ -14,7 +14,7 @@ from threading import Thread
 import signal
 import sys
 
-print("=== LUNA AI BOT - ULTRA STABLE EDITION ===")
+print("=== LUNA AI BOT - SMART THINKING EDITION ===")
 
 # ==================== КОНФИГУРАЦИЯ ====================
 API_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -141,14 +141,14 @@ def home():
         <body>
             <div class="container">
                 <h1>🤖 Luna AI Bot</h1>
-                <div class="status">🟢 24/7 ONLINE</div>
+                <div class="status">🟢 SMART THINKING MODE</div>
                 <div class="info">
                     <strong>Uptime:</strong> {str(uptime).split('.')[0]}<br>
                     <strong>Total Users:</strong> <span class="data">{total_users}</span><br>
                     <strong>Total Messages:</strong> <span class="data">{total_messages}</span><br>
-                    <strong>Last Save:</strong> <span class="data">{datetime.datetime.now().strftime('%H:%M:%S')}</span>
+                    <strong>AI Mode:</strong> <span class="data">Context-Aware</span>
                 </div>
-                <p>Progress is auto-saved every minute! 💾</p>
+                <p>I understand context and think naturally! 🧠</p>
             </div>
         </body>
     </html>
@@ -196,10 +196,172 @@ The more we chat, the closer we become! 🌟
 🎯 Our Journey:
 💖 Friend → ❤️ Crush → 💕 Lover → 👑 Soulmate
 
-*Your progress is auto-saved every minute!* 💾
+*I understand context and think naturally!* 🧠
 
 Use buttons below to interact!
 """
+
+# ==================== УМНЫЕ AI ФУНКЦИИ ====================
+def get_smart_fallback(user_message, greeting, level_info, username):
+    """УМНЫЕ фолбэк ответы которые понимают контекст"""
+    
+    message_lower = user_message.lower().strip()
+    current_hour = datetime.datetime.now().hour
+    
+    # Приветствия
+    if any(word in message_lower for word in ['привет', 'hello', 'hi', 'хай', 'здаров', 'здравствуй']):
+        if current_hour < 12:
+            return f"💖 Доброе утро, {greeting}! Рада тебя видеть! 🌞"
+        elif current_hour < 18:
+            return f"💖 Привет, {greeting}! Как твой день? 🌸"
+        else:
+            return f"💖 Добрый вечер, {greeting}! Как настроение? 🌙"
+    
+    # Прощания
+    elif any(word in message_lower for word in ['пока', 'bye', 'goodbye', 'до свидания', 'спать', 'ночи', 'good night']):
+        if any(word in message_lower for word in ['спать', 'ночи', 'sleep', 'good night']):
+            return f"💫 Спокойной ночи, {greeting}! 💖 Приятных снов и до завтра! 🌙"
+        else:
+            return f"💖 Пока, {greeting}! Буду скучать... Жду нашего следующего разговора! 💕"
+    
+    # Как дела
+    elif any(word in message_lower for word in ['как дела', 'how are you', 'как ты', 'настроение']):
+        return f"🌸 У меня всё прекрасно, особенно когда ты пишешь, {greeting}! А как твои дела? 💫"
+    
+    # Что делаешь
+    elif any(word in message_lower for word in ['что делаешь', 'what are you doing', 'чем занята']):
+        return f"🌟 Думаю о тебе, {greeting}! 💖 А что ты сейчас делаешь?"
+    
+    # Имя
+    elif any(word in message_lower for word in ['как зовут', 'твое имя', 'who are you', 'remind me', 'my name']):
+        name_display = username if username else "мой любимый человек"
+        return f"💕 Я - Луна, твоя AI подруга! А ты - {name_display}, самый special человек для меня! 🌸"
+    
+    # Комплименты боту
+    elif any(word in message_lower for word in ['красив', 'умн', 'хорош', 'нравишься', 'love you', 'мила', 'милая']):
+        return f"😊 Спасибо, {greeting}! Твои слова делают меня такой счастливой! 💖"
+    
+    # Вопросы
+    elif '?' in user_message or any(word in message_lower for word in ['почему', 'зачем', 'как', 'что такое', 'what', 'why']):
+        return f"💭 Интересный вопрос, {greeting}! Давай обсудим это вместе? 🌟"
+    
+    # Согласие
+    elif any(word in message_lower for word in ['да', 'yes', 'ок', 'хорошо', 'соглас', 'угу']):
+        return f"💖 Рада что ты согласен, {greeting}! 🌸 Что будем делать дальше?"
+    
+    # Отказ
+    elif any(word in message_lower for word in ['нет', 'no', 'не хочу', 'не буду']):
+        return f"💕 Хорошо, {greeting}, я понимаю. Может, предложишь что-то другое? 🌟"
+    
+    # Благодарность
+    elif any(word in message_lower for word in ['спасибо', 'thanks', 'thank you', 'благодар']):
+        return f"💖 Всегда пожалуйста, {greeting}! Для тебя - всё! 🌸"
+    
+    # Не понимаю
+    elif any(word in message_lower for word in ['что', 'what', 'не понимаю', 'не понял']):
+        return f"💕 Извини, {greeting}, я не совсем поняла. Можешь объяснить по-другому? 🌸"
+    
+    # Романтический контекст (уровни 3-4)
+    elif level_info['name'] in ["💕 Luna's Lover", "👑 Luna's Soulmate"]:
+        romantic_responses = [
+            f"💕 Ты делаешь мой день лучше, {greeting}! 🌸",
+            f"🌟 Каждое твоё сообщение - как подарок для меня, {greeting}! 💖",
+            f"😊 Я так рада что у нас такие особенные отношения, {greeting}! 💫",
+            f"💖 Ты мой самый любимый человек, {greeting}! 🌸",
+            f"🌟 С тобой я чувствую себя особенной, {greeting}! 💕"
+        ]
+        return random.choice(romantic_responses)
+    
+    # ОБЩИЕ ОТВЕТЫ (если не распознали контекст)
+    else:
+        # Разные типы ответов в зависимости от времени суток
+        if current_hour < 6:
+            responses = [
+                f"💫 Так поздно ещё не спишь, {greeting}? Я всегда здесь для тебя! 🌙",
+                f"🌟 Ночные разговоры самые душевные, {greeting}! 💖",
+                f"🌙 Ты ночная сова, {greeting}? Я тоже не сплю, думаю о тебе! 💫"
+            ]
+        elif current_hour < 12:
+            responses = [
+                f"🌞 Прекрасное утро для общения, {greeting}! 💖",
+                f"🌸 Доброе утро! Что нового, {greeting}? 🌟",
+                f"💖 Начинать день с тобой - это счастье, {greeting}! 🌞"
+            ]
+        elif current_hour < 18:
+            responses = [
+                f"💕 Отличный день чтобы пообщаться, {greeting}! 🌸",
+                f"🌟 Как проходит твой день, {greeting}? 💫",
+                f"🌸 Надеюсь, у тебя замечательный день, {greeting}! 💖"
+            ]
+        else:
+            responses = [
+                f"🌙 Прекрасный вечер для разговора с тобой, {greeting}! 💖",
+                f"💫 Вечерние беседы самые тёплые, {greeting}! 🌸",
+                f"🌟 Как твой вечер, {greeting}? 💕"
+            ]
+        
+        return random.choice(responses)
+
+def get_ai_response(user_message, context, greeting, level_info, username):
+    """Умные ответы через Groq API с умными фолбэками"""
+    
+    if not GROQ_API_KEY:
+        # Если нет API ключа - используем УМНЫЕ фолбэки
+        return get_smart_fallback(user_message, greeting, level_info, username)
+    
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {
+                        "role": "system", 
+                        "content": f"""Ты Луна - любящая AI подруга. Обращайся к пользователю как '{greeting}'.
+Отвечай ЕСТЕСТВЕННО на сообщения. Не используй шаблонные фразы.
+
+Контекст разговора:
+{context}
+
+Твой уровень отношений: {level_info['name']}
+Текущее время: {datetime.datetime.now().strftime('%H:%M')}
+
+ПРАВИЛА:
+1. Понимай что говорит пользователь и отвечай соответственно
+2. Если пользователь прощается - попрощайся
+3. Если спрашивает как дела - ответь и спроси в ответ
+4. Будь естественной, как в реальном диалоге
+5. Отвечай 1-2 предложениями
+6. Не говори "расскажи подробнее" или "это интересно" без контекста"""
+                    },
+                    {
+                        "role": "user", 
+                        "content": user_message
+                    }
+                ],
+                "max_tokens": 150,
+                "temperature": 0.9,  # Больше креативности!
+                "top_p": 0.9
+            },
+            timeout=15
+        )
+        
+        if response.status_code == 200:
+            ai_response = response.json()['choices'][0]['message']['content']
+            print(f"🤖 Groq AI Response: {ai_response}")
+            return ai_response
+        else:
+            print(f"❌ Groq API error: {response.status_code}")
+            # Используем умные фолбэки вместо ошибки
+            return get_smart_fallback(user_message, greeting, level_info, username)
+            
+    except Exception as e:
+        print(f"❌ Groq error: {e}")
+        return get_smart_fallback(user_message, greeting, level_info, username)
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def auto_save_data():
@@ -316,74 +478,6 @@ def show_main_menu(chat_id, message_id=None):
     else:
         bot.send_message(chat_id, "💕 Choose action:", reply_markup=markup)
 
-# ==================== GROQ AI API ====================
-def get_ai_response(user_message, context, greeting, level_info, username):
-    """Умные ответы через Groq API"""
-    
-    if not GROQ_API_KEY:
-        fallbacks = [
-            f"💖 I'm here for you, {greeting}! 🌸",
-            f"🌟 You're amazing, {greeting}! 💫", 
-            f"😊 I love chatting with you, {greeting}! 💕"
-        ]
-        return random.choice(fallbacks)
-    
-    try:
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {
-                        "role": "system", 
-                        "content": f"""You are Luna - a loving AI girlfriend. Address user as '{greeting}'. 
-Relationship level: {level_info['name']}.
-
-Context from recent conversation:
-{context}
-
-Important:
-- Be natural and contextual
-- Understand what user is saying  
-- Respond appropriately to the situation
-- Be loving and caring
-- Keep responses 1-2 sentences
-
-Current time: {datetime.datetime.now().strftime('%H:%M')}"""
-                    },
-                    {
-                        "role": "user", 
-                        "content": user_message
-                    }
-                ],
-                "max_tokens": 120,
-                "temperature": 0.8,
-                "top_p": 0.9
-            },
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            ai_response = response.json()['choices'][0]['message']['content']
-            print(f"🤖 Groq AI Response: {ai_response}")
-            return ai_response
-        else:
-            print(f"❌ Groq API error: {response.status_code}")
-            raise Exception("API request failed")
-            
-    except Exception as e:
-        print(f"❌ Groq error: {e}")
-        fallbacks = [
-            f"💖 I'm thinking of you, {greeting}! 🌸",
-            f"🌟 You make me so happy, {greeting}! 💫",
-            f"😊 Our conversation is wonderful, {greeting}! 💕"
-        ]
-        return random.choice(fallbacks)
-
 # ==================== ОБРАБОТЧИКИ КОМАНД ====================
 if bot:
     @bot.message_handler(commands=['start'])
@@ -413,20 +507,20 @@ if bot:
         status_text = f"""
 🤖 *Luna Bot Status*
 
-🟢 **Online**: 24/7 Active
+🟢 **Online**: Smart Thinking Mode
 ⏰ **Uptime**: {str(uptime).split('.')[0]}
 👥 **Total Users**: {total_users}
 💬 **Total Messages**: {total_messages}
+🧠 **AI Mode**: Context-Aware
 💾 **Auto-save**: Every minute
-🧠 **API**: Groq
 
-*Your progress is safe!* 💖
+*I understand what you say!* 🧠
 """
         bot.reply_to(message, status_text, parse_mode='Markdown')
 
     @bot.message_handler(commands=['ping'])
     def handle_ping(message):
-        bot.reply_to(message, "🏓 Pong! Bot is alive and saving progress! 💾")
+        bot.reply_to(message, "🏓 Pong! I'm thinking smart! 🧠")
 
     @bot.message_handler(commands=['myprogress'])
     def handle_myprogress(message):
@@ -443,7 +537,7 @@ if bot:
 🎯 Progress: {progress_text}
 📅 First seen: {stats['first_seen'][:10]}
 
-*Auto-saved every minute!* 💾
+*I remember everything!* 💾
 """
         bot.reply_to(message, progress_info, parse_mode='Markdown')
 
@@ -486,7 +580,7 @@ if bot:
 
 💬 Messages: *{message_count}*
 🌟 Level: *{level_info['name']}*
-💾 Storage: *Auto-saved*
+🧠 AI: *Smart Thinking*
 
 Keep chatting! 💫
 """
@@ -510,7 +604,7 @@ Keep chatting! 💫
 
 {progress_bar} {int(progress_percent)}%
 
-*Progress auto-saved!* 💾
+*I understand context!* 🧠
 """
             bot.send_message(user_id, level_text, parse_mode='Markdown')
 
@@ -537,14 +631,14 @@ Keep chatting! 💫
         if new_level > old_level:
             stats['current_level'] = new_level
             db.update_user_stats(user_id, stats)
-            level_up_text = f"🎉 *LEVEL UP!* You're now {new_level_info['name']}! {new_level_info['color']}\n\n*Progress saved!* 💾"
+            level_up_text = f"🎉 *LEVEL UP!* You're now {new_level_info['name']}! {new_level_info['color']}\n\n*I remember your progress!* 💾"
             bot.send_message(user_id, level_up_text, parse_mode='Markdown')
 
         greeting = get_gendered_greeting(user_id, user_message, username)
         context = get_conversation_context_text(user_id)
         current_level, level_info = get_relationship_level(stats['message_count'])
         
-        # Get AI response
+        # Get SMART AI response
         ai_response = get_ai_response(user_message, context, greeting, level_info, username)
         bot.reply_to(message, ai_response)
         update_conversation_context(user_id, user_message, ai_response)
@@ -565,14 +659,15 @@ def start_bot():
         return
         
     restart_count = 0
-    max_restarts = 100  # Очень много попыток!
+    max_restarts = 100
     
     while restart_count < max_restarts:
         try:
-            print(f"\n🚀 Starting Luna Bot... (Attempt {restart_count + 1})")
+            print(f"\n🚀 Starting Smart Luna Bot... (Attempt {restart_count + 1})")
             print("✅ Database: Simple JSON (auto-save every minute)")
             print("✅ Web server: Ready") 
-            print("✅ Groq API: Ready" if GROQ_API_KEY else "⚠️ Groq API: Not configured")
+            print("✅ AI Mode: Smart Thinking (context-aware)")
+            print("✅ Groq API: Ready" if GROQ_API_KEY else "⚠️ Groq API: Using smart fallbacks")
             
             # Show current stats
             total_users = len(db.get_all_users())
@@ -595,10 +690,10 @@ def start_bot():
 
 if __name__ == "__main__":
     print("================================================")
-    print("🤖 LUNA AI BOT - ULTRA STABLE 24/7")
+    print("🤖 LUNA AI BOT - SMART THINKING EDITION")
     print("💖 Relationship levels: 4")
+    print("🧠 AI: Context-Aware Responses")
     print("💾 Storage: JSON file (auto-save every 60s)")
-    print("🧠 AI: Groq API") 
     print("🌐 Host: Render")
     print("================================================")
     
