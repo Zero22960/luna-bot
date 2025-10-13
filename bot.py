@@ -14,7 +14,7 @@ from threading import Thread
 import signal
 import sys
 
-print("=== LUNA AI BOT - SMART THINKING EDITION ===")
+print("=== LUNA AI BOT - ACHIEVEMENTS EDITION ===")
 
 # ==================== КОНФИГУРАЦИЯ ====================
 API_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -26,7 +26,7 @@ if not API_TOKEN:
 else:
     bot = telebot.TeleBot(API_TOKEN)
 
-# ==================== УЛУЧШЕННАЯ БАЗА ДАННЫХ С ПРЕМИУМ ПОДДЕРЖКОЙ ====================
+# ==================== УЛУЧШЕННАЯ БАЗА ДАННЫХ ====================
 class SimpleDatabase:
     def __init__(self):
         self.data_file = 'bot_data.json'
@@ -34,20 +34,19 @@ class SimpleDatabase:
         self.user_stats = {}
         self.user_gender = {} 
         self.user_context = {}
-        self.premium_users = {}  # 🆕 FOR PREMIUM
+        self.premium_users = {}
+        self.user_achievements = {}  # 🆕 Достижения пользователей
         self.load_data()
         print("✅ Enhanced Database initialized")
     
     def load_data(self):
         """SMART loading with backup system"""
         try:
-            # Try main file first
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.load_from_data(data)
                 print(f"💾 Loaded: {len(self.user_stats)} users, {self.get_total_messages()} messages")
-            # If main file missing - try backup
             elif os.path.exists(self.backup_file):
                 print("⚠️  Main file missing, loading from backup...")
                 with open(self.backup_file, 'r', encoding='utf-8') as f:
@@ -64,7 +63,8 @@ class SimpleDatabase:
         self.user_stats = data.get('user_stats', {})
         self.user_gender = data.get('user_gender', {})
         self.user_context = data.get('user_context', {})
-        self.premium_users = data.get('premium_users', {})  # 🆕
+        self.premium_users = data.get('premium_users', {})
+        self.user_achievements = data.get('user_achievements', {})  # 🆕
     
     def save_data(self):
         """RELIABLE saving with backup"""
@@ -73,64 +73,52 @@ class SimpleDatabase:
                 'user_stats': self.user_stats,
                 'user_gender': self.user_gender, 
                 'user_context': self.user_context,
-                'premium_users': self.premium_users,  # 🆕
+                'premium_users': self.premium_users,
+                'user_achievements': self.user_achievements,  # 🆕
                 'last_save': datetime.datetime.now().isoformat(),
                 'total_users': len(self.user_stats),
                 'total_messages': self.get_total_messages()
             }
             
-            # 🆕 First save to temporary file
             temp_file = self.data_file + '.tmp'
             with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             
-            # 🆕 Then atomically replace main file
             if os.path.exists(self.data_file):
-                os.replace(self.data_file, self.backup_file)  # Old -> backup
-            os.replace(temp_file, self.data_file)  # New -> main
+                os.replace(self.data_file, self.backup_file)
+            os.replace(temp_file, self.data_file)
             
             print(f"💾 Data saved securely! Users: {len(self.user_stats)}, Messages: {self.get_total_messages()}")
             
         except Exception as e:
             print(f"❌ Save data error: {e}")
     
-    # 🆕 PREMIUM USER METHODS
-    def set_premium_status(self, user_id, premium_type="basic", expires=None):
-        """Sets premium status"""
+    # 🆕 МЕТОДЫ ДЛЯ ДОСТИЖЕНИЙ
+    def get_user_achievements(self, user_id):
         user_id_str = str(user_id)
-        self.premium_users[user_id_str] = {
-            'premium_type': premium_type,
-            'activated': datetime.datetime.now().isoformat(),
-            'expires': expires or (datetime.datetime.now() + datetime.timedelta(days=30)).isoformat(),
-            'features': self.get_premium_features(premium_type)
-        }
-        self.save_data()  # Immediate save for premium
+        if user_id_str not in self.user_achievements:
+            self.user_achievements[user_id_str] = {
+                'unlocked': [],
+                'progress': {
+                    'messages_sent': 0,
+                    'buttons_used': 0,
+                    'different_buttons': set(),
+                    'levels_reached': 1,
+                    'days_active': 1
+                }
+            }
+        return self.user_achievements[user_id_str]
     
-    def get_premium_features(self, premium_type):
-        """Returns features for premium type"""
-        features = {
-            "basic": ["unlimited_messages", "priority_chat", "extended_memory"],
-            "premium": ["voice_messages", "custom_personality", "early_access"],
-            "vip": ["dedicated_support", "feature_requests", "exclusive_content"]
-        }
-        return features.get(premium_type, [])
+    def update_user_achievements(self, user_id, achievements):
+        self.user_achievements[str(user_id)] = achievements
     
-    def is_premium_user(self, user_id):
-        """Checks premium status"""
-        user_data = self.premium_users.get(str(user_id), {})
-        if not user_data:
-            return False
-        
-        # Check if subscription expired
-        expires = user_data.get('expires')
-        if expires:
-            expire_date = datetime.datetime.fromisoformat(expires)
-            if datetime.datetime.now() > expire_date:
-                del self.premium_users[str(user_id)]  # Remove expired premium
-                self.save_data()
-                return False
-        
-        return True
+    def unlock_achievement(self, user_id, achievement_id):
+        user_achievements = self.get_user_achievements(user_id)
+        if achievement_id not in user_achievements['unlocked']:
+            user_achievements['unlocked'].append(achievement_id)
+            self.save_data()
+            return True
+        return False
 
     def get_user_stats(self, user_id):
         user_id_str = str(user_id)
@@ -139,7 +127,8 @@ class SimpleDatabase:
                 'message_count': 0,
                 'first_seen': datetime.datetime.now().isoformat(),
                 'last_seen': datetime.datetime.now().isoformat(), 
-                'current_level': 1
+                'current_level': 1,
+                'waiting_feedback': False  # 🆕 Для фидбека
             }
         return self.user_stats[user_id_str]
     
@@ -167,6 +156,107 @@ class SimpleDatabase:
 
 # Initialize enhanced database
 db = SimpleDatabase()
+
+# ==================== СИСТЕМА ДОСТИЖЕНИЙ ====================
+ACHIEVEMENTS = {
+    "chatty": {
+        "name": "💬 Chatty", 
+        "description": "Send 10 messages",
+        "goal": 10,
+        "type": "messages_sent"
+    },
+    "social_butterfly": {
+        "name": "🦋 Social Butterfly", 
+        "description": "Send 50 messages", 
+        "goal": 50,
+        "type": "messages_sent"
+    },
+    "button_explorer": {
+        "name": "🔍 Button Explorer",
+        "description": "Use 3 different menu buttons",
+        "goal": 3, 
+        "type": "different_buttons"
+    },
+    "level_2": {
+        "name": "🌟 Rising Star",
+        "description": "Reach relationship level 2",
+        "goal": 2,
+        "type": "levels_reached"
+    },
+    "level_3": {
+        "name": "💕 Romantic",
+        "description": "Reach relationship level 3", 
+        "goal": 3,
+        "type": "levels_reached"
+    },
+    "level_4": {
+        "name": "👑 Soulmate",
+        "description": "Reach relationship level 4",
+        "goal": 4, 
+        "type": "levels_reached"
+    },
+    "first_day": {
+        "name": "🌅 First Day",
+        "description": "Talk to Luna for the first time",
+        "goal": 1,
+        "type": "days_active"
+    },
+    "week_old": {
+        "name": "📅 Week Old",
+        "description": "Talk to Luna for 7 days",
+        "goal": 7,
+        "type": "days_active"
+    }
+}
+
+def check_achievements(user_id, stats, action_type=None, action_data=None):
+    """Проверяет и выдает достижения"""
+    user_achievements = db.get_user_achievements(user_id)
+    unlocked_achievements = []
+    
+    # Обновляем прогресс
+    if action_type == "message_sent":
+        user_achievements['progress']['messages_sent'] += 1
+    elif action_type == "button_used":
+        user_achievements['progress']['buttons_used'] += 1
+        if action_data and 'button_type' in action_data:
+            user_achievements['progress']['different_buttons'].add(action_data['button_type'])
+    elif action_type == "level_up":
+        user_achievements['progress']['levels_reached'] = max(
+            user_achievements['progress']['levels_reached'], 
+            action_data['new_level'] if action_data else stats['current_level']
+        )
+    
+    # Проверяем достижения
+    for achievement_id, achievement in ACHIEVEMENTS.items():
+        if achievement_id in user_achievements['unlocked']:
+            continue
+            
+        progress = user_achievements['progress'][achievement['type']]
+        if achievement['type'] == 'different_buttons':
+            progress = len(user_achievements['progress']['different_buttons'])
+        
+        if progress >= achievement['goal']:
+            if db.unlock_achievement(user_id, achievement_id):
+                unlocked_achievements.append(achievement)
+    
+    db.update_user_achievements(user_id, user_achievements)
+    return unlocked_achievements
+
+def get_achievements_message(achievements):
+    """Создает сообщение о полученных достижениях"""
+    if not achievements:
+        return None
+    
+    if len(achievements) == 1:
+        achievement = achievements[0]
+        return f"🎉 *ACHIEVEMENT UNLOCKED!* 🎉\n\n**{achievement['name']}**\n{achievement['description']}\n\n*You're amazing!* 💫"
+    else:
+        message = "🎉 *MULTIPLE ACHIEVEMENTS UNLOCKED!* 🎉\n\n"
+        for achievement in achievements:
+            message += f"**{achievement['name']}**\n{achievement['description']}\n\n"
+        message += "*You're on fire!* 🔥"
+        return message
 
 # ==================== GRACEFUL SHUTDOWN ====================
 def signal_handler(signum, frame):
@@ -207,14 +297,14 @@ def home():
         <body>
             <div class="container">
                 <h1>🤖 Luna AI Bot</h1>
-                <div class="status">🟢 SMART THINKING MODE</div>
+                <div class="status">🟢 ACHIEVEMENTS EDITION</div>
                 <div class="info">
                     <strong>Uptime:</strong> {str(uptime).split('.')[0]}<br>
                     <strong>Total Users:</strong> <span class="data">{total_users}</span><br>
                     <strong>Total Messages:</strong> <span class="data">{total_messages}</span><br>
-                    <strong>AI Mode:</strong> <span class="data">Context-Aware</span>
+                    <strong>AI Mode:</strong> <span class="data">Smart Thinking</span>
                 </div>
-                <p>I understand context and think naturally! 🧠</p>
+                <p>Now with achievements and feedback system! 🎮</p>
             </div>
         </body>
     </html>
@@ -262,12 +352,12 @@ The more we chat, the closer we become! 🌟
 🎯 Our Journey:
 💖 Friend → ❤️ Crush → 💕 Lover → 👑 Soulmate
 
-*I understand context and think naturally!* 🧠
+🎮 *New: Achievements System!* Unlock rewards as you chat!
 
 Use buttons below to interact!
 """
 
-# ==================== УМНЫЕ AI ФУНКЦИИ (ENGLISH VERSION) ====================
+# ==================== УМНЫЕ AI ФУНКЦИИ ====================
 def get_smart_fallback(user_message, greeting, level_info, username):
     """SMART fallback responses that understand context"""
     
@@ -327,23 +417,10 @@ def get_smart_fallback(user_message, greeting, level_info, username):
     elif any(word in message_lower for word in ['what', 'huh', 'don\'t understand', 'confused']):
         return f"💕 Sorry, {greeting}, I didn't quite get that. Could you explain differently? 🌸"
     
-    # Romantic context (levels 3-4)
-    elif level_info['name'] in ["💕 Luna's Lover", "👑 Luna's Soulmate"]:
-        romantic_responses = [
-            f"💕 You make my day better, {greeting}! 🌸",
-            f"🌟 Every message from you feels like a gift, {greeting}! 💖",
-            f"😊 I'm so happy we have this special connection, {greeting}! 💫",
-            f"💖 You're my favorite person, {greeting}! 🌸",
-            f"🌟 With you I feel so special, {greeting}! 💕"
-        ]
-        return random.choice(romantic_responses)
-    
     # GAMES AND ACTIVITIES DETECTION
-    # Alphabet game
     elif any(phrase in message_lower for phrase in ['name letters', 'alphabet game', 'say letters', 'alphabet']):
         return "💖 Oh that sounds fun! Let's take turns naming letters of the alphabet! 🌟\nI'll start: A"
     
-    # Single letter response (continuing alphabet game)
     elif len(message_lower.strip()) == 1 and message_lower in 'abcdefghijklmnopqrstuvwxyz':
         current_letter = message_lower.upper()
         next_letter = chr(ord(current_letter) + 1)
@@ -352,14 +429,12 @@ def get_smart_fallback(user_message, greeting, level_info, username):
         else:
             return "🎉 Yay! We finished the alphabet! That was so fun! 💖"
     
-    # Other games
     elif any(word in message_lower for word in ['game', 'play', 'fun', 'bored']):
         games = ["word association", "story telling", "truth or dare", "would you rather"]
         return f"🎮 I'd love to play {random.choice(games)} with you, {greeting}! 💕"
     
-    # GENERAL RESPONSES (if no context matched)
+    # GENERAL RESPONSES
     else:
-        # Different response types based on time of day
         if current_hour < 6:
             responses = [
                 f"💫 Up so late, {greeting}? I'm always here for you! 🌙",
@@ -391,7 +466,6 @@ def get_ai_response(user_message, context, greeting, level_info, username):
     """SMART responses via Groq API with intelligent thinking"""
     
     if not GROQ_API_KEY:
-        # Use SMART fallbacks that understand context
         return get_smart_fallback(user_message, greeting, level_info, username)
     
     try:
@@ -431,7 +505,7 @@ THINKING RULES:
                     }
                 ],
                 "max_tokens": 150,
-                "temperature": 0.9,  # More creativity!
+                "temperature": 0.9,
                 "top_p": 0.9
             },
             timeout=15
@@ -443,7 +517,6 @@ THINKING RULES:
             return ai_response
         else:
             print(f"❌ Groq API error: {response.status_code}")
-            # Use smart fallbacks instead of error
             return get_smart_fallback(user_message, greeting, level_info, username)
             
     except Exception as e:
@@ -554,8 +627,9 @@ def show_main_menu(chat_id, message_id=None):
     btn3 = types.InlineKeyboardButton("🌟 Compliment", callback_data="compliment")
     btn4 = types.InlineKeyboardButton("📊 Stats", callback_data="show_stats")
     btn5 = types.InlineKeyboardButton("🎯 Level", callback_data="show_level")
+    btn6 = types.InlineKeyboardButton("🏆 Achievements", callback_data="show_achievements")  # 🆕
     markup.add(btn1, btn2, btn3)
-    markup.add(btn4, btn5)
+    markup.add(btn4, btn5, btn6)
     
     if message_id:
         try:
@@ -572,7 +646,13 @@ if bot:
         user_id = message.chat.id
         stats = db.get_user_stats(user_id)
         
-        welcome_with_stats = WELCOME_MESSAGE + f"\n📊 Your progress: Level {stats['current_level']}, {stats['message_count']} messages"
+        # 🆕 Проверяем достижения при старте
+        new_achievements = check_achievements(user_id, stats, action_type="first_day")
+        achievements_message = ""
+        if new_achievements:
+            achievements_message = f"\n\n{get_achievements_message(new_achievements)}"
+        
+        welcome_with_stats = WELCOME_MESSAGE + f"\n📊 Your progress: Level {stats['current_level']}, {stats['message_count']} messages" + achievements_message
         bot.reply_to(message, welcome_with_stats, parse_mode='Markdown')
         show_main_menu(user_id)
 
@@ -594,14 +674,15 @@ if bot:
         status_text = f"""
 🤖 *Luna Bot Status*
 
-🟢 **Online**: Smart Thinking Mode
+🟢 **Online**: Achievements Edition
 ⏰ **Uptime**: {str(uptime).split('.')[0]}
 👥 **Total Users**: {total_users}
 💬 **Total Messages**: {total_messages}
-🧠 **AI Mode**: Context-Aware
+🧠 **AI Mode**: Smart Thinking
+🎮 **Achievements**: {len(ACHIEVEMENTS)} available
 💾 **Auto-save**: Every minute
 
-*I understand what you say!* 🧠
+*Now with achievements system!* 🏆
 """
         bot.reply_to(message, status_text, parse_mode='Markdown')
 
@@ -616,19 +697,84 @@ if bot:
         current_level, level_info = get_relationship_level(stats['message_count'])
         progress_text, progress_percent = get_level_progress(stats['message_count'])
         
+        # 🆕 Информация о достижениях
+        user_achievements = db.get_user_achievements(user_id)
+        unlocked_count = len(user_achievements['unlocked'])
+        total_achievements = len(ACHIEVEMENTS)
+        
         progress_info = f"""
 📊 *Your Progress*
 
 💬 Messages: *{stats['message_count']}*
 🌟 Current Level: *{level_info['name']}* {level_info['color']}
+🏆 Achievements: *{unlocked_count}/{total_achievements} unlocked*
 🎯 Progress: {progress_text}
 📅 First seen: {stats['first_seen'][:10]}
 
-*I remember everything!* 💾
+*Keep chatting to unlock more achievements!* 🎮
 """
         bot.reply_to(message, progress_info, parse_mode='Markdown')
 
-    # 🆕 PREMIUM COMMANDS
+    # 🆕 КОМАНДА ФИДБЕКА
+    @bot.message_handler(commands=['feedback'])
+    def handle_feedback(message):
+        feedback_text = """
+📝 *Share Your Feedback - Help Us Improve!* 💖
+
+We're in early development and YOUR opinion matters!
+
+**What would you like to share?**
+✨ What you love about Luna?
+🚀 What features would you like to see?  
+🐛 Any bugs or issues?
+💡 Your brilliant ideas?
+
+Just type your thoughts below...
+
+*Thank you for helping us create the perfect AI companion!* 🌟
+"""
+        bot.reply_to(message, feedback_text, parse_mode='Markdown')
+        
+        # Помечаем что ждем фидбек
+        user_id = message.chat.id
+        stats = db.get_user_stats(user_id)
+        stats['waiting_feedback'] = True
+        db.update_user_stats(user_id, stats)
+
+    # 🆕 КОМАНДА ДОСТИЖЕНИЙ
+    @bot.message_handler(commands=['achievements'])
+    def handle_achievements(message):
+        user_id = message.chat.id
+        user_achievements = db.get_user_achievements(user_id)
+        
+        achievements_text = "🏆 *Your Achievements* 🏆\n\n"
+        
+        # Разблокированные достижения
+        if user_achievements['unlocked']:
+            achievements_text += "✨ *Unlocked:*\n"
+            for achievement_id in user_achievements['unlocked']:
+                achievement = ACHIEVEMENTS[achievement_id]
+                achievements_text += f"✅ **{achievement['name']}** - {achievement['description']}\n"
+            achievements_text += "\n"
+        else:
+            achievements_text += "No achievements unlocked yet! Start chatting! 💫\n\n"
+        
+        # Прогресс по остальным
+        achievements_text += "🎯 *In Progress:*\n"
+        for achievement_id, achievement in ACHIEVEMENTS.items():
+            if achievement_id in user_achievements['unlocked']:
+                continue
+                
+            progress = user_achievements['progress'][achievement['type']]
+            if achievement['type'] == 'different_buttons':
+                progress = len(user_achievements['progress']['different_buttons'])
+            
+            achievements_text += f"⏳ **{achievement['name']}** - {progress}/{achievement['goal']} - {achievement['description']}\n"
+        
+        achievements_text += "\n*Keep going! You're amazing!* 💖"
+        
+        bot.reply_to(message, achievements_text, parse_mode='Markdown')
+
     @bot.message_handler(commands=['premium'])
     def handle_premium(message):
         user_id = message.chat.id
@@ -674,10 +820,7 @@ if bot:
 
     @bot.message_handler(commands=['buypremium'])
     def handle_buy_premium(message):
-        # Here will be payment system integration
         user_id = message.chat.id
-        
-        # 🆕 TEST ACTIVATION (in real bot this will be payment)
         db.set_premium_status(user_id, "basic")
         
         bot.reply_to(message, 
@@ -701,11 +844,18 @@ if bot:
             response = f"💖 Warm hugs for you, {greeting}!"
             bot.send_message(user_id, response)
             update_conversation_context(user_id, "hug", response)
+            # 🆕 Отслеживаем использование кнопок
+            new_achievements = check_achievements(user_id, stats, action_type="button_used", action_data={"button_type": "hug"})
+            if new_achievements:
+                bot.send_message(user_id, get_achievements_message(new_achievements), parse_mode='Markdown')
             
         elif call.data == "kiss":
             response = f"😘 Sending kisses your way, {greeting}!"
             bot.send_message(user_id, response)
             update_conversation_context(user_id, "kiss", response)
+            new_achievements = check_achievements(user_id, stats, action_type="button_used", action_data={"button_type": "kiss"})
+            if new_achievements:
+                bot.send_message(user_id, get_achievements_message(new_achievements), parse_mode='Markdown')
             
         elif call.data == "compliment":
             compliments = [
@@ -716,10 +866,13 @@ if bot:
             response = random.choice(compliments)
             bot.send_message(user_id, response)
             update_conversation_context(user_id, "compliment", response)
+            new_achievements = check_achievements(user_id, stats, action_type="button_used", action_data={"button_type": "compliment"})
+            if new_achievements:
+                bot.send_message(user_id, get_achievements_message(new_achievements), parse_mode='Markdown')
             
         elif call.data == "show_stats":
-            stats = db.get_user_stats(user_id)
-            message_count = stats['message_count']
+            stats_data = db.get_user_stats(user_id)
+            message_count = stats_data['message_count']
             current_level, level_info = get_relationship_level(message_count)
             
             stats_text = f"""
@@ -734,8 +887,8 @@ Keep chatting! 💫
             bot.send_message(user_id, stats_text, parse_mode='Markdown')
             
         elif call.data == "show_level":
-            stats = db.get_user_stats(user_id)
-            message_count = stats['message_count']
+            stats_data = db.get_user_stats(user_id)
+            message_count = stats_data['message_count']
             current_level, level_info = get_relationship_level(message_count)
             progress_text, progress_percent = get_level_progress(message_count)
             
@@ -754,6 +907,9 @@ Keep chatting! 💫
 *I understand context!* 🧠
 """
             bot.send_message(user_id, level_text, parse_mode='Markdown')
+            
+        elif call.data == "show_achievements":  # 🆕
+            handle_achievements(call.message)
 
     # ==================== ОБРАБОТКА СООБЩЕНИЙ ====================
     @bot.message_handler(func=lambda message: True)
@@ -764,37 +920,78 @@ Keep chatting! 💫
         
         print(f"📨 Message from {user_id}: {user_message}")
 
-        # Get and update stats
+        # 🆕 Проверяем не фидбек ли это
         stats = db.get_user_stats(user_id)
+        if stats.get('waiting_feedback'):
+            # Сохраняем фидбек
+            feedback_data = {
+                'user_id': user_id,
+                'username': username,
+                'message': user_message,
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            
+            try:
+                with open('user_feedback.json', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(feedback_data, ensure_ascii=False) + '\n')
+            except Exception as e:
+                print(f"❌ Feedback save error: {e}")
+            
+            # Сбрасываем флаг и благодарим
+            stats['waiting_feedback'] = False
+            db.update_user_stats(user_id, stats)
+            
+            bot.reply_to(message, 
+                "💖 *Thank you for your feedback!* 🌟\n\n"
+                "Your thoughts are incredibly valuable to us! "
+                "We'll use them to make Luna even better! 🚀\n\n"
+                "*You're amazing!* 💫", 
+                parse_mode='Markdown'
+            )
+            return
+
+        # Обычная обработка сообщений
         old_message_count = stats['message_count']
         stats['message_count'] += 1
         stats['last_seen'] = datetime.datetime.now().isoformat()
         db.update_user_stats(user_id, stats)
         
-        # Check for level up
+        # 🆕 Проверяем достижения за сообщения
+        new_achievements = check_achievements(user_id, stats, action_type="message_sent")
+        
+        # Проверяем повышение уровня
         old_level, _ = get_relationship_level(old_message_count)
         new_level, new_level_info = get_relationship_level(stats['message_count'])
         
+        level_up_achievements = []
         if new_level > old_level:
             stats['current_level'] = new_level
             db.update_user_stats(user_id, stats)
             level_up_text = f"🎉 *LEVEL UP!* You're now {new_level_info['name']}! {new_level_info['color']}\n\n*I remember your progress!* 💾"
             bot.send_message(user_id, level_up_text, parse_mode='Markdown')
-
+            
+            # 🆕 Проверяем достижения за уровни
+            level_up_achievements = check_achievements(user_id, stats, action_type="level_up", action_data={"new_level": new_level})
+        
         greeting = get_gendered_greeting(user_id, user_message, username)
         context = get_conversation_context_text(user_id)
         current_level, level_info = get_relationship_level(stats['message_count'])
         
-        # Get SMART AI response
+        # Получаем AI ответ
         ai_response = get_ai_response(user_message, context, greeting, level_info, username)
         bot.reply_to(message, ai_response)
         update_conversation_context(user_id, user_message, ai_response)
+        
+        # 🆕 Показываем достижения если есть
+        all_new_achievements = new_achievements + level_up_achievements
+        if all_new_achievements:
+            bot.send_message(user_id, get_achievements_message(all_new_achievements), parse_mode='Markdown')
 
 # ==================== АВТО-СОХРАНЕНИЕ КАЖДУЮ МИНУТУ ====================
 def auto_save_worker():
     """Сохраняем данные каждую минуту"""
     while True:
-        time.sleep(60)  # Каждую минуту!
+        time.sleep(60)
         db.save_data()
         print(f"💾 Auto-save: {len(db.get_all_users())} users, {db.get_total_messages()} messages")
 
@@ -810,14 +1007,14 @@ def start_bot():
     
     while restart_count < max_restarts:
         try:
-            print(f"\n🚀 Starting Smart Luna Bot... (Attempt {restart_count + 1})")
-            print("✅ Database: Enhanced JSON (secure auto-save every minute)")
+            print(f"\n🚀 Starting Luna Bot - Achievements Edition... (Attempt {restart_count + 1})")
+            print("✅ Database: Enhanced JSON with achievements")
             print("✅ Web server: Ready") 
-            print("✅ AI Mode: Smart Thinking (context-aware)")
-            print("✅ Premium System: Ready")
+            print("✅ AI Mode: Smart Thinking")
+            print("✅ Achievements: 8 available")
+            print("✅ Feedback System: Ready")
             print("✅ Groq API: Ready" if GROQ_API_KEY else "⚠️ Groq API: Using smart fallbacks")
             
-            # Show current stats
             total_users = len(db.get_all_users())
             total_messages = db.get_total_messages()
             print(f"📊 Current stats: {total_users} users, {total_messages} messages")
@@ -825,7 +1022,6 @@ def start_bot():
             bot_info = bot.get_me()
             print(f"✅ Bot: @{bot_info.username} is ready!")
             
-            # Супер стабильный polling
             bot.polling(none_stop=True, timeout=120, long_polling_timeout=120)
             
         except Exception as e:
@@ -838,28 +1034,25 @@ def start_bot():
 
 if __name__ == "__main__":
     print("================================================")
-    print("🤖 LUNA AI BOT - SMART THINKING EDITION")
+    print("🤖 LUNA AI BOT - ACHIEVEMENTS EDITION")
     print("💖 Relationship levels: 4")
     print("🧠 AI: Context-Aware Responses") 
-    print("💾 Storage: Enhanced JSON (secure auto-save)")
-    print("👑 Premium: Ready for monetization")
+    print("🏆 Achievements: 8 to unlock")
+    print("📝 Feedback: System ready")
+    print("💾 Storage: Enhanced JSON")
     print("🌐 Host: Render")
     print("================================================")
     
-    # Show initial stats
     total_users = len(db.get_all_users())
     total_messages = db.get_total_messages()
     print(f"📊 Loaded: {total_users} users, {total_messages} messages")
     
-    # Start auto-save каждую минуту!
     save_thread = Thread(target=auto_save_worker, daemon=True)
     save_thread.start()
     print("💾 Auto-save started (every 60 seconds)")
     
-    # Start web server
     web_thread = Thread(target=run_web, daemon=True)
     web_thread.start()
     print("🌐 24/7 Web server started")
     
-    # Start bot
     start_bot()
