@@ -19,6 +19,7 @@ print("=== LUNA AI BOT - ULTRA STABLE EDITION ===")
 # ==================== КОНФИГУРАЦИЯ ====================
 API_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
+FEEDBACK_CHAT_ID = os.environ.get('FEEDBACK_CHAT_ID', '')  # 🆕 Чат для фидбеков
 
 if not API_TOKEN:
     print("❌ TELEGRAM_BOT_TOKEN not found!")
@@ -52,7 +53,10 @@ class SimpleDatabase:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.load_from_data(data)
-                print(f"💾 Loaded from main: {len(self.user_stats)} users, {self.get_total_messages()} messages")
+                
+                # 🛠️ ФИКС: Логируем загруженные достижения
+                total_achievements = sum(len(ach['unlocked']) for ach in self.user_achievements.values())
+                print(f"💾 Loaded from main: {len(self.user_stats)} users, {total_achievements} total achievements unlocked")
                 return
             except Exception as e:
                 print(f"❌ Main file corrupted: {e}")
@@ -63,7 +67,9 @@ class SimpleDatabase:
                 with open(self.backup_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     self.load_from_data(data)
-                print(f"✅ Restored from backup: {len(self.user_stats)} users")
+                
+                total_achievements = sum(len(ach['unlocked']) for ach in self.user_achievements.values())
+                print(f"✅ Restored from backup: {len(self.user_stats)} users, {total_achievements} achievements")
                 return
             except Exception as e:
                 print(f"❌ Backup file corrupted: {e}")
@@ -82,16 +88,20 @@ class SimpleDatabase:
         self.user_context = data.get('user_context', {})
         self.premium_users = data.get('premium_users', {})
         
-        # 🛠️ ФИКС: Конвертируем achievements обратно в правильный формат
+        # 🛠️ ФИКС: Правильно конвертируем achievements
         achievements_data = data.get('user_achievements', {})
         self.user_achievements = {}
+        
         for user_id, user_ach in achievements_data.items():
+            # 🛠️ ФИКС: Конвертируем list обратно в set
+            different_buttons = user_ach.get('progress', {}).get('different_buttons', [])
+            
             self.user_achievements[user_id] = {
                 'unlocked': user_ach.get('unlocked', []),
                 'progress': {
                     'messages_sent': user_ach.get('progress', {}).get('messages_sent', 0),
                     'buttons_used': user_ach.get('progress', {}).get('buttons_used', 0),
-                    'different_buttons': set(user_ach.get('progress', {}).get('different_buttons', [])),  # 🛠️ list -> set
+                    'different_buttons': set(different_buttons),  # 🛠️ ФИКС: list -> set
                     'levels_reached': user_ach.get('progress', {}).get('levels_reached', 1),
                     'days_active': user_ach.get('progress', {}).get('days_active', 1)
                 }
@@ -186,10 +196,15 @@ class SimpleDatabase:
     
     def unlock_achievement(self, user_id, achievement_id):
         user_achievements = self.get_user_achievements(user_id)
+        
+        # 🛠️ ФИКС: Двойная проверка на дубликаты
         if achievement_id not in user_achievements['unlocked']:
             user_achievements['unlocked'].append(achievement_id)
             self.save_data()
+            print(f"🔓 ACHIEVEMENT SAVED: {user_id} -> {achievement_id}")
             return True
+        
+        print(f"⚠️  ACHIEVEMENT ALREADY UNLOCKED: {user_id} -> {achievement_id}")
         return False
 
     def get_user_stats(self, user_id):
@@ -225,6 +240,81 @@ class SimpleDatabase:
     
     def get_total_messages(self):
         return sum(stats.get('message_count', 0) for stats in self.user_stats.values())
+
+    def is_premium_user(self, user_id):
+        """🆕 Проверяет premium статус пользователя"""
+        user_id_str = str(user_id)
+        if user_id_str not in self.premium_users:
+            return False
+        
+        premium_data = self.premium_users[user_id_str]
+        expires = premium_data.get('expires')
+        
+        if expires:
+            try:
+                expire_date = datetime.datetime.fromisoformat(expires)
+                if datetime.datetime.now() > expire_date:
+                    # Premium истек
+                    del self.premium_users[user_id_str]
+                    return False
+            except:
+                pass
+        
+        return True
+
+    def set_premium_status(self, user_id, premium_type="basic", duration_days=30):
+        """🆕 Устанавливает premium статус пользователя"""
+        user_id_str = str(user_id)
+        
+        activate_date = datetime.datetime.now()
+        expire_date = activate_date + datetime.timedelta(days=duration_days)
+        
+        features = {
+            "basic": ["unlimited_messages", "priority_access", "extended_memory", "ad_free"],
+            "premium": ["unlimited_messages", "priority_access", "extended_memory", "ad_free", "voice_messages", "custom_personality"],
+            "vip": ["unlimited_messages", "priority_access", "extended_memory", "ad_free", "voice_messages", "custom_personality", "dedicated_support", "feature_requests"]
+        }
+        
+        self.premium_users[user_id_str] = {
+            'premium_type': premium_type,
+            'activated': activate_date.isoformat(),
+            'expires': expire_date.isoformat(),
+            'features': features.get(premium_type, features['basic'])
+        }
+        
+        self.save_data()
+
+    def get_system_stats(self):
+        """🆕 Возвращает статистику системы"""
+        return {
+            'total_users': len(self.user_stats),
+            'total_messages': self.get_total_messages(),
+            'premium_users': len([uid for uid in self.premium_users if self.is_premium_user(uid)]),
+            'users_with_achievements': len(self.user_achievements),
+            'last_save_time': self.last_backup_time
+        }
+
+    def validate_achievements_data(self):
+        """🆕 Проверяет целостность данных достижений"""
+        issues = []
+        
+        for user_id, achievements in self.user_achievements.items():
+            # Проверяем существующие достижения
+            for achievement_id in achievements['unlocked']:
+                if achievement_id not in ACHIEVEMENTS:
+                    issues.append(f"User {user_id}: invalid achievement {achievement_id}")
+            
+            # Проверяем прогресс
+            progress = achievements['progress']
+            if not isinstance(progress['different_buttons'], set):
+                issues.append(f"User {user_id}: different_buttons is not a set")
+        
+        if issues:
+            print(f"⚠️  Achievement data issues: {issues}")
+        else:
+            print("✅ Achievement data is valid")
+        
+        return len(issues) == 0
 
 # Initialize enhanced database
 db = SimpleDatabase()
@@ -286,6 +376,9 @@ def check_achievements(user_id, stats, action_type=None, action_data=None):
     user_achievements = db.get_user_achievements(user_id)
     unlocked_achievements = []
     
+    # 🛠️ ФИКС: Сохраняем исходное состояние перед проверкой
+    original_unlocked = user_achievements['unlocked'].copy()
+    
     if action_type == "message_sent":
         user_achievements['progress']['messages_sent'] += 1
     elif action_type == "button_used":
@@ -298,8 +391,9 @@ def check_achievements(user_id, stats, action_type=None, action_data=None):
             action_data['new_level'] if action_data else stats['current_level']
         )
     
+    # 🛠️ ФИКС: Проверяем только НОВЫЕ достижения
     for achievement_id, achievement in ACHIEVEMENTS.items():
-        if achievement_id in user_achievements['unlocked']:
+        if achievement_id in original_unlocked:  # 🛠️ Уже разблокировано - пропускаем
             continue
             
         progress = user_achievements['progress'][achievement['type']]
@@ -309,6 +403,7 @@ def check_achievements(user_id, stats, action_type=None, action_data=None):
         if progress >= achievement['goal']:
             if db.unlock_achievement(user_id, achievement_id):
                 unlocked_achievements.append(achievement)
+                print(f"🎉 NEW ACHIEVEMENT: {user_id} -> {achievement_id}")  # 🛠️ Логируем
     
     db.update_user_achievements(user_id, user_achievements)
     return unlocked_achievements
@@ -338,6 +433,35 @@ def signal_handler(signum, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+
+# ==================== УЛУЧШЕННАЯ СИСТЕМА ФИДБЕКОВ ====================
+def send_feedback_to_admin(user_id, username, feedback_text):
+    """🆕 Отправляет фидбек в указанный чат"""
+    if not FEEDBACK_CHAT_ID or not bot:
+        print(f"📝 Feedback from {user_id} ({username}): {feedback_text}")
+        return
+    
+    try:
+        feedback_message = f"""
+📝 *NEW USER FEEDBACK* 📝
+
+👤 *User ID:* `{user_id}`
+📛 *Username:* {username if username else 'No username'}
+💬 *Message:* 
+{feedback_text}
+
+⏰ *Time:* {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        """
+        
+        bot.send_message(
+            chat_id=FEEDBACK_CHAT_ID,
+            text=feedback_message,
+            parse_mode='Markdown'
+        )
+        print(f"✅ Feedback sent to admin chat: {user_id}")
+        
+    except Exception as e:
+        print(f"❌ Failed to send feedback: {e}")
 
 # ==================== WEB SERVER FOR 24/7 ====================
 app = Flask(__name__)
@@ -1004,7 +1128,13 @@ Keep chatting! 💫
             bot.send_message(user_id, level_text, parse_mode='Markdown')
             
         elif call.data == "show_achievements":
-            handle_achievements(call.message)
+            # 🛠️ ФИКС: Создаем новое сообщение вместо использования call.message
+            class MockMessage:
+                def __init__(self, chat_id):
+                    self.chat = type('Chat', (), {'id': chat_id})()
+            
+            mock_message = MockMessage(user_id)
+            handle_achievements(mock_message)
 
     @bot.message_handler(func=lambda message: True)
     def handle_all_messages(message):
@@ -1016,18 +1146,8 @@ Keep chatting! 💫
 
         stats = db.get_user_stats(user_id)
         if stats.get('waiting_feedback'):
-            feedback_data = {
-                'user_id': user_id,
-                'username': username,
-                'message': user_message,
-                'timestamp': datetime.datetime.now().isoformat()
-            }
-            
-            try:
-                with open('user_feedback.json', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(feedback_data, ensure_ascii=False) + '\n')
-            except Exception as e:
-                print(f"❌ Feedback save error: {e}")
+            # 🆕 УЛУЧШЕННАЯ СИСТЕМА ФИДБЕКОВ
+            send_feedback_to_admin(user_id, username, user_message)
             
             stats['waiting_feedback'] = False
             db.update_user_stats(user_id, stats)
@@ -1100,6 +1220,7 @@ def start_bot():
             print("💾 AUTO-SAVE: Every 30 seconds + after every message") 
             print("🚨 EMERGENCY: Quick save on shutdown")
             print("🎮 FEATURES: Achievements + Feedback system")
+            print("📝 FEEDBACKS: Sending to admin chat" if FEEDBACK_CHAT_ID else "⚠️ FEEDBACKS: Logging only")
             print("✅ Groq API: Ready" if GROQ_API_KEY else "⚠️ Groq API: Using smart fallbacks")
             
             total_users = len(db.get_all_users())
@@ -1139,6 +1260,29 @@ if __name__ == "__main__":
     total_users = len(db.get_all_users())
     total_messages = db.get_total_messages()
     print(f"📊 Loaded: {total_users} users, {total_messages} messages")
+    
+    # Проверка целостности данных достижений
+    print("🔍 Validating achievement data...")
+    db.validate_achievements_data()
+
+    # Тестируем систему достижений
+    test_user_id = 12345
+    test_achievements = db.get_user_achievements(test_user_id)
+    print(f"🧪 Test user achievements: {len(test_achievements['unlocked'])} unlocked")
+    
+    # Проверка всех методов базы данных
+    try:
+        test_stats = db.get_system_stats()
+        print(f"✅ Database check: {test_stats}")
+        
+        # Тест premium функций
+        test_user_id = 12345
+        db.set_premium_status(test_user_id, "basic")
+        is_premium = db.is_premium_user(test_user_id)
+        print(f"✅ Premium system: {is_premium}")
+        
+    except Exception as e:
+        print(f"❌ Database check failed: {e}")
     
     save_thread = Thread(target=auto_save_worker, daemon=True)
     save_thread.start()
